@@ -109,7 +109,118 @@ EOF
 sudo chmod +x /usr/local/bin/limine-snapshot-sync-arm
 ```
 
-## Step 5: Create Test Snapshots
+## Step 5: Set Up Automatic Snapshot Sync Service for ARM64
+
+Create a watcher service that monitors for snapshot changes and automatically syncs them to Limine:
+
+```bash
+# Create ARM64 watcher script that monitors snapshot directory
+sudo tee /usr/local/bin/limine-snapshot-sync-arm-watcher <<'EOF'
+#!/bin/bash
+
+WATCH_DIR="/.snapshots"
+SYNC_CMD="/usr/local/bin/limine-snapshot-sync-arm"
+
+# Check if script is run with root privileges
+if ((EUID != 0)); then
+    echo -e "\033[91m limine-snapshot-sync-arm-watcher must be run with root privileges.\033[0m" >&2
+    exit 1
+fi
+
+# Check if root filesystem is Btrfs
+fstype=$(findmnt --mountpoint / -no FSTYPE)
+if [[ "$fstype" != "btrfs" ]]; then
+    echo -e "\033[91m Root filesystem is not Btrfs. Watcher stopped.\033[0m" >&2
+    exit 0
+fi
+
+# Check if we're in a read-only snapshot
+if [[ $(btrfs property get / ro 2>/dev/null) == *true ]]; then
+    echo -e "\033[91m You are in a read-only Btrfs snapshot. Watcher stopped.\033[0m" >&2
+    exit 0
+fi
+
+# Check if we're booted from a snapshot
+cmdline=$(</proc/cmdline)
+if [[ $cmdline =~ rootflags.*subvol=.*?/([0-9]+)/snapshot ]]; then
+    echo -e "\033[91m You are booted from a snapshot. Watcher stopped.\033[0m" >&2
+    exit 0
+fi
+
+# Initial sync if snapshots directory exists
+if [[ -d "$WATCH_DIR" ]]; then
+    echo "Running initial snapshot sync..."
+    $SYNC_CMD
+fi
+
+# Monitor directory for creation/deletion events
+echo "Monitoring $WATCH_DIR for snapshot changes..."
+inotifywait -q -m -e create -e delete --format '%e|%f' "${WATCH_DIR}" | while IFS='|' read -r event snapID; do
+    echo "[EVENT] $event -> $snapID"
+    # Run sync in background to avoid blocking
+    $SYNC_CMD &
+done
+EOF
+
+sudo chmod +x /usr/local/bin/limine-snapshot-sync-arm-watcher
+
+# Install inotify-tools for directory monitoring
+sudo pacman -S --needed --noconfirm inotify-tools
+
+# Create systemd service for automatic syncing
+sudo tee /etc/systemd/system/limine-snapshot-sync-arm.service <<'EOF'
+[Unit]
+Description=Limine ARM64 Snapshot Sync Service
+After=multi-user.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/limine-snapshot-sync-arm-watcher
+Restart=on-failure
+RestartSec=10s
+
+# Security hardening
+CapabilityBoundingSet=CAP_SYS_ADMIN
+LockPersonality=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHome=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ReadWritePaths=/tmp /boot/EFI/BOOT
+RemoveIPC=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+NoNewPrivileges=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service @mount
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Create override for any existing limine-snapper-sync service (if installed by Omarchy)
+sudo mkdir -p /etc/systemd/system/limine-snapper-sync.service.d
+sudo tee /etc/systemd/system/limine-snapper-sync.service.d/arm64-override.conf <<'EOF'
+# Override to use ARM64 sync script instead of Java-based tool
+[Service]
+ExecStart=
+ExecStart=/usr/local/bin/limine-snapshot-sync-arm-watcher
+EOF
+
+# Enable and start the service
+sudo systemctl daemon-reload
+sudo systemctl enable --now limine-snapshot-sync-arm.service
+
+# Verify service is running
+sudo systemctl status limine-snapshot-sync-arm.service --no-pager
+```
+
+## Step 6: Create Test Snapshots
 
 ```bash
 # Create snapshots
@@ -119,7 +230,7 @@ sudo snapper -c root list
 # Note: We'll test the sync script after Limine is installed
 ```
 
-## Step 6: Install Plymouth and Set Up mkinitcpio Hooks
+## Step 7: Install Plymouth and Set Up mkinitcpio Hooks
 
 ```bash
 # Install Plymouth for boot splash screen
@@ -138,7 +249,7 @@ printf "n\n" | sudo mkinitcpio -P
 
 **Create a Parallels snapshot here!** This allows you to easily test different Limine versions or revert if something goes wrong with the bootloader installation.
 
-## Step 7: Install and Configure Limine
+## Step 8: Install and Configure Limine
 
 This step combines downloading Limine, creating the configuration, and installing everything:
 
@@ -227,9 +338,6 @@ echo "Limine boot entry: Boot$ENTRY"
 LIMINE_NUM=$(sudo efibootmgr | grep "Limine" | cut -c5-8)
 sudo efibootmgr --bootorder 0005,${LIMINE_NUM},0002,0003,0000,0004
 
-# Test the snapshot sync script
-sudo limine-snapshot-sync-arm
-
 # Verify installation
 ls -la "$EFI_DIR/BOOTAA64.EFI" "$EFI_DIR/limine.conf"
 echo ""
@@ -276,10 +384,10 @@ When using `omarchy-update` or `pacman -Syu`, snapshots will be created automati
 
 ## Manual Snapshot Creation (optional)
 
+> Note: Snapshots automatically appear in boot menu via the sync service we created earlier
+
 ```bash
 sudo snapper -c root create --description "Description here"
-sudo limine-snapshot-sync-arm
-# Snapshots automatically appear in boot menu via the sync script
 ```
 
 ## Troubleshooting
@@ -299,7 +407,7 @@ sudo install -m 0644 BOOTAA64.EFI /boot/EFI/BOOT/BOOTAA64.EFI
 # If limine.conf is missing, recreate it:
 # The config must be in the same directory as BOOTAA64.EFI
 sudo cp /boot/EFI/BOOT/limine.conf.bak /boot/EFI/BOOT/limine.conf
-# Or regenerate using the Step 7 instructions above
+# Or regenerate using the Step 8 instructions above
 
 # Verify the boot entry points to the correct path:
 sudo efibootmgr -v | grep Limine
