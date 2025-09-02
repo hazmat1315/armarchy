@@ -80,10 +80,11 @@ sudo sed -i 's/^NUMBER_LIMIT_IMPORTANT="10"/NUMBER_LIMIT_IMPORTANT="5"/' /etc/sn
 
 ## Step 4: Enable Snapshot Synchronization
 
-Omarchy will automatically set up snapshot synchronization with Limine. Just run the initial sync to test:
+Omarchy will automatically set up snapshot synchronization with Limine. This step requires Omarchy to be installed first:
 
 ```bash
 # Run the Omarchy Limine update script to generate the hierarchical menu
+# (Only available after Omarchy installation is complete)
 sudo omarchy-limine-update
 
 # Verify the service is enabled (it should be set up automatically)
@@ -248,6 +249,7 @@ ls -la "$EFI_DIR/BOOTAA64.EFI" "$EFI_DIR/limine.conf"
 
 ```bash
 # Run Omarchy's Limine update to create the hierarchical snapshot menu
+# (Only available after Omarchy installation is complete)
 sudo omarchy-limine-update
 
 # Preview the final limine.conf with hierarchical menu
