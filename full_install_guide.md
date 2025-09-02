@@ -1031,6 +1031,7 @@ View the `parallels-tools-install.log` with:
 cat /var/log/parallels-tools-install.log
 ```
 
+
 ## Step 13: Install Omarchy (finally!)
 
 We made it! Definitely take a snapshot in both Arch and Parallels at this point so that you have a fresh pre-Omarchy install attempt point to revert to.
@@ -1048,6 +1049,7 @@ wget -qO- https://raw.githubusercontent.com/nilszeilon/armarchy/master/boot.sh |
 ```
 
 Follow the prompts and good luck...
+
 
 ## Step 14: Configure ARM-Specific Packages (If Needed)
 
@@ -1069,6 +1071,7 @@ Add the `asahi-alarm` mirror as the first entry
 
 ```bash
 [asahi-alarm]
+SigLevel = Optional TrustAll
 Include = /etc/pacman.d/mirrorlist.asahi-alarm
 ```
 
@@ -1100,6 +1103,7 @@ Now update the local package mirror databases
 sudo pacman -Syu
 ```
 
-![[install_guide/CleanShot 2025-08-30 at 23.44.49@2x.png]]
-
-Install widevine?
+Install widevine
+```bash
+pacman -S asahi-alarm/widevine
+```
