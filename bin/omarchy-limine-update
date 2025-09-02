@@ -22,7 +22,7 @@ fi
 
 # Backup existing config
 if [[ -f "$LIMINE_CONFIG" ]]; then
-  sudo cp "$LIMINE_CONFIG" "${LIMINE_CONFIG}.bak"
+  cp "$LIMINE_CONFIG" "${LIMINE_CONFIG}.bak"
 fi
 
 # Function to get latest kernel version
@@ -125,59 +125,67 @@ if [[ -n "$KERNEL_VERSION" ]]; then
   echo "  kernel_cmdline: $CMDLINE" >>"${LIMINE_CONFIG}.tmp"
 fi
 
-# Add Snapshots submenu
-echo "" >>"${LIMINE_CONFIG}.tmp"
-echo "  //Snapshots" >>"${LIMINE_CONFIG}.tmp"
-echo "  comment: Select a snapshot to boot into" >>"${LIMINE_CONFIG}.tmp"
+# Add Snapshots submenu if snapper is available
+if command -v snapper &>/dev/null && snapper list-configs &>/dev/null 2>&1; then
+    # Get root config snapshots - skip header and get LATEST 5 snapshots
+    SNAPSHOTS=$(snapper -c root list --columns number,description 2>/dev/null | grep "^[1-9]" | tail -5)
 
-# Parse existing snapshot entries from the backup config
-if [[ -f "${LIMINE_CONFIG}.bak" ]]; then
-  # Extract snapshot entries from existing config
-  grep -E "^/Snapshot [0-9]+" "${LIMINE_CONFIG}.bak" | while read -r line; do
-    # Parse the snapshot line
-    SNAPSHOT_DESC=$(echo "$line" | sed 's|^/||')
-    NUM=$(echo "$line" | grep -oE "Snapshot [0-9]+" | grep -oE "[0-9]+")
+    if [[ -n "$SNAPSHOTS" ]]; then
+        echo "" >> "${LIMINE_CONFIG}.tmp"
+        echo "  //Snapshots" >> "${LIMINE_CONFIG}.tmp"
+        echo "  comment: Select a snapshot to boot into" >> "${LIMINE_CONFIG}.tmp"
 
-    if [[ -n "$NUM" ]]; then
-      # Format the description properly
-      DESC_CLEAN=$(echo "$SNAPSHOT_DESC" | sed "s|Snapshot $NUM - ||" | sed 's|Snapshot [0-9]* ||')
+        while IFS= read -r line; do
+            if [[ -z "$line" ]]; then continue; fi
 
-      echo "    ///$DESC_CLEAN" >>"${LIMINE_CONFIG}.tmp"
-      echo "    comment: Snapshot $NUM" >>"${LIMINE_CONFIG}.tmp"
-      echo "    protocol: linux" >>"${LIMINE_CONFIG}.tmp"
+            # Parse snapshot info - the line has format "NUM │ DESCRIPTION" with box character
+            NUM=$(echo "$line" | awk '{print $1}')
+            # Extract description - everything after the box character or pipe
+            if echo "$line" | grep -q "│"; then
+                DESC=$(echo "$line" | sed 's/^[^│]*│ *//')
+            else
+                DESC=$(echo "$line" | sed 's/^[0-9]* *//')
+            fi
 
-      # ARM64 uses different paths
-      if [[ "$(uname -m)" == "aarch64" ]]; then
-        echo "    kernel_path: boot():/Image" >>"${LIMINE_CONFIG}.tmp"
-        echo "    module_path: boot():/initramfs-linux.img" >>"${LIMINE_CONFIG}.tmp"
-      else
-        # Get kernel path from existing config if available
-        KERNEL_PATH=$(grep -A5 "^/Snapshot $NUM" "${LIMINE_CONFIG}.bak" | grep "path:" | head -1 | awk '{print $2}')
-        MODULE_PATH=$(grep -A5 "^/Snapshot $NUM" "${LIMINE_CONFIG}.bak" | grep "module_path:" | head -1 | awk '{print $2}')
+            # Skip if no snapshot number
+            if [[ -z "$NUM" ]] || [[ "$NUM" == "0" ]]; then continue; fi
 
-        if [[ -n "$KERNEL_PATH" ]]; then
-          echo "    kernel_path: $KERNEL_PATH" >>"${LIMINE_CONFIG}.tmp"
-        else
-          echo "    kernel_path: boot():/vmlinuz-${KERNEL_VERSION}" >>"${LIMINE_CONFIG}.tmp"
-        fi
+            # Check if snapshot directory exists (simpler check)
+            SNAPSHOT_SUBVOL="root/.snapshots/$NUM/snapshot"
+            if [[ ! -d "/.snapshots/$NUM/snapshot" ]]; then
+                continue
+            fi
 
-        if [[ -n "$MODULE_PATH" ]]; then
-          echo "    module_path: $MODULE_PATH" >>"${LIMINE_CONFIG}.tmp"
-        elif [[ -f "/boot/initramfs-${KERNEL_VERSION}.img" ]]; then
-          echo "    module_path: boot():/initramfs-${KERNEL_VERSION}.img" >>"${LIMINE_CONFIG}.tmp"
-        fi
-      fi
+            # Format the description
+            SNAPSHOT_DESC=$(format_snapshot_desc "$DESC" "$NUM")
 
-      # Use the correct snapshot subvolume path
-      SNAPSHOT_SUBVOL="root/.snapshots/$NUM/snapshot"
-      SNAPSHOT_CMDLINE=$(echo "$CMDLINE" | sed "s|rootflags=subvol=[^ ]*|rootflags=subvol=$SNAPSHOT_SUBVOL|")
-      echo "    kernel_cmdline: $SNAPSHOT_CMDLINE" >>"${LIMINE_CONFIG}.tmp"
-      echo "" >>"${LIMINE_CONFIG}.tmp"
+            # Add snapshot entry with proper indentation (4 spaces for sub-submenu)
+            echo "    ///Snapshot $NUM - $SNAPSHOT_DESC" >> "${LIMINE_CONFIG}.tmp"
+            echo "    comment: Snapshot $NUM" >> "${LIMINE_CONFIG}.tmp"
+            echo "    protocol: linux" >> "${LIMINE_CONFIG}.tmp"
+
+            # ARM64 uses different paths
+            if [[ "$(uname -m)" == "aarch64" ]]; then
+                echo "    kernel_path: boot():/Image" >> "${LIMINE_CONFIG}.tmp"
+                if [[ -f "/boot/initramfs-linux.img" ]]; then
+                    echo "    module_path: boot():/initramfs-linux.img" >> "${LIMINE_CONFIG}.tmp"
+                fi
+            else
+                echo "    kernel_path: boot():/vmlinuz-${KERNEL_VERSION}" >> "${LIMINE_CONFIG}.tmp"
+                if [[ -f "/boot/initramfs-${KERNEL_VERSION}.img" ]]; then
+                    echo "    module_path: boot():/initramfs-${KERNEL_VERSION}.img" >> "${LIMINE_CONFIG}.tmp"
+                fi
+            fi
+
+            # Modify cmdline for snapshot
+            SNAPSHOT_CMDLINE=$(echo "$CMDLINE" | sed "s|rootflags=subvol=[^ ]*|rootflags=subvol=$SNAPSHOT_SUBVOL|")
+            echo "    kernel_cmdline: $SNAPSHOT_CMDLINE" >> "${LIMINE_CONFIG}.tmp"
+
+        done <<< "$SNAPSHOTS"
     fi
-  done
 fi
 
 # Move the new config into place
-sudo mv "${LIMINE_CONFIG}.tmp" "$LIMINE_CONFIG"
+mv "${LIMINE_CONFIG}.tmp" "$LIMINE_CONFIG"
 
 echo "Limine configuration updated with hierarchical menu structure"
