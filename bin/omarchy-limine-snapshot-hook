@@ -35,6 +35,9 @@ fi
 
 # Lock file to prevent concurrent updates
 LOCK_FILE="/tmp/limine-update.lock"
+
+# Ensure lock file is writable
+touch "$LOCK_FILE" 2>/dev/null || LOCK_FILE="/var/tmp/limine-update.lock"
 exec 200>"$LOCK_FILE"
 
 if ! flock -n 200; then
@@ -42,14 +45,13 @@ if ! flock -n 200; then
     exit 0
 fi
 
-# Update the Limine configuration
-OMARCHY_BIN=${OMARCHY_PATH:-$HOME/.local/share/omarchy/bin}
-if [[ -x "$OMARCHY_BIN/omarchy-limine-update" ]]; then
-    "$OMARCHY_BIN/omarchy-limine-update"
+# Update the Limine configuration - find the update script dynamically
+UPDATE_SCRIPT=$(find /home /usr/local -name omarchy-limine-update -executable 2>/dev/null | head -1)
+
+if [[ -x "$UPDATE_SCRIPT" ]]; then
+    "$UPDATE_SCRIPT"
 elif command -v omarchy-limine-update >/dev/null 2>&1; then
     omarchy-limine-update
-elif [[ -x /usr/local/bin/omarchy-limine-update ]]; then
-    /usr/local/bin/omarchy-limine-update
 else
     echo "ERROR: omarchy-limine-update not found" >&2
     exit 1

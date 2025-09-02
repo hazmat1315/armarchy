@@ -127,8 +127,8 @@ fi
 
 # Add Snapshots submenu if snapper is available
 if command -v snapper &>/dev/null && snapper list-configs &>/dev/null 2>&1; then
-    # Get root config snapshots - skip header and get LATEST 5 snapshots
-    SNAPSHOTS=$(snapper -c root list --columns number,description 2>/dev/null | grep "^[1-9]" | tail -5)
+    # Get root config snapshots - skip header and get LATEST 5 snapshots (newest first)
+    SNAPSHOTS=$(snapper -c root list --columns number,description 2>/dev/null | grep "^[1-9]" | tail -5 | tac)
 
     if [[ -n "$SNAPSHOTS" ]]; then
         echo "" >> "${LIMINE_CONFIG}.tmp"
