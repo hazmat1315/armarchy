@@ -88,15 +88,20 @@ EOF
       sudo snapper -c root create-config /
     fi
 
-    if ! sudo snapper list-configs 2>/dev/null | grep -q "home"; then
+    # Only create home config if /home is a separate btrfs subvolume
+    if sudo btrfs subvolume show /home &>/dev/null && ! sudo snapper list-configs 2>/dev/null | grep -q "home"; then
       sudo snapper -c home create-config /home
     fi
   fi
 
-  # Tweak default Snapper configs
-  sudo sed -i 's/^TIMELINE_CREATE="yes"/TIMELINE_CREATE="no"/' /etc/snapper/configs/{root,home}
-  sudo sed -i 's/^NUMBER_LIMIT="50"/NUMBER_LIMIT="5"/' /etc/snapper/configs/{root,home}
-  sudo sed -i 's/^NUMBER_LIMIT_IMPORTANT="10"/NUMBER_LIMIT_IMPORTANT="5"/' /etc/snapper/configs/{root,home}
+  # Tweak default Snapper configs - only modify configs that exist
+  for config in root home; do
+    if sudo snapper list-configs 2>/dev/null | grep -q "$config"; then
+      sudo sed -i 's/^TIMELINE_CREATE="yes"/TIMELINE_CREATE="no"/' /etc/snapper/configs/$config
+      sudo sed -i 's/^NUMBER_LIMIT="50"/NUMBER_LIMIT="5"/' /etc/snapper/configs/$config
+      sudo sed -i 's/^NUMBER_LIMIT_IMPORTANT="10"/NUMBER_LIMIT_IMPORTANT="5"/' /etc/snapper/configs/$config
+    fi
+  done
 
   if [ -z "$OMARCHY_ARM" ]; then
     chrootable_systemctl_enable limine-snapper-sync.service
