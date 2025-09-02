@@ -3,326 +3,326 @@
 Download archboot from here https://release.archboot.com/aarch64/latest/iso/
 
 The archboot download page showing available ISO options:
-![[install_guide/image001.png]]
+![](install_guide/image001.png)
 I chose the largest one, which is an offline "local" installer.
 
 > **Network Requirements**: Local ISOs work offline (largest), standard ISOs need internet (medium), netboot (smallest) requires _wired_ ethernet.
 
 ## Create a new VM choosing "Install from an image file"
 
-![[install_guide/image002.png]]
+![](install_guide/image002.png)
 
 ## Choose your iso manually
 
-![[install_guide/image003.png]]
+![](install_guide/image003.png)
 
 Click "select a file..."
-![[install_guide/image004.png]]
+![](install_guide/image004.png)
 
 Browse and select the downloaded archboot ISO file
-![[install_guide/image005.png]]
+![](install_guide/image005.png)
 
 A warning will pop up stating "Unable to detect operating system". That's fine, click "Continue".
-![[install_guide/image006.png]]
+![](install_guide/image006.png)
 
 Choose "Other" from the operating system list
-![[install_guide/image007.png]]
+![](install_guide/image007.png)
 
 Name your VM, choose a location, then check "Customize settings before installation":
-![[install_guide/image008.png]]
+![](install_guide/image008.png)
 
 The Configuration window will appear with VM settings
-![[install_guide/image009.png]]
+![](install_guide/image009.png)
 
 Customize the Hardware preferences (CPU and Memory)
-![[install_guide/image010.png]]
+![](install_guide/image010.png)
 
 Graphics settings configuration:
-![[install_guide/image011.png]]
+![](install_guide/image011.png)
 
 The hard drive will only allow us to install the default 64gb capacity, but we'll grow that after we boot to the new OS
-![[install_guide/image012.png]]
+![](install_guide/image012.png)
 
 ## Ensure CD/DVD is chosen for boot order, initially
 
-![[install_guide/image013.png]]
+![](install_guide/image013.png)
 
 I didn't enable disk encryption
-![[install_guide/image014.png]]
+![](install_guide/image014.png)
 
 Up to you, but I'm leaving SmartGuard off. I plan to manually take snapshots and use the built-in limine bootloader snapshot capabilities, just like "real" hardware!
-![[install_guide/image015.png]]
+![](install_guide/image015.png)
 
 ## Since you've selected the ISO, start the machine and it'll boot to this screen
 
-![[install_guide/image016.png]]
+![](install_guide/image016.png)
 
 ## Then it'll boot to the Aarch64 ISO
 
-![[install_guide/image017.png]]
+![](install_guide/image017.png)
 
 ## Choose "ENTER" and set it up with your locale.
 
-![[install_guide/image018.png]]
+![](install_guide/image018.png)
 
 ## Then choose "No" when prompted to use Online Mode since the mirrors are experiencing DDoS attacks as of August 2025.
 
-![[install_guide/image019.png]]
+![](install_guide/image019.png)
 
 Configure your timezone region
-![[install_guide/image020.png]]
+![](install_guide/image020.png)
 
 Choose the nearest city in your timezone
-![[install_guide/image021.png]]
+![](install_guide/image021.png)
 
 Confirm the date
-![[install_guide/image022.png]]
+![](install_guide/image022.png)
 
 Confirm the time
-![[install_guide/image023.png]]
+![](install_guide/image023.png)
 
 Launch Archboot Setup
-![[install_guide/image024.png]]
+![](install_guide/image024.png)
 
 Prepare Storage Device
-![[install_guide/image025.png]]
+![](install_guide/image025.png)
 
 Choose "Quick Setup (erases the ENTIRE storage device)"
-![[install_guide/image026.png]]
+![](install_guide/image026.png)
 
 Choose your storage device (there is only one option)
-![[install_guide/image027.png]]
+![](install_guide/image027.png)
 
 Select the PARTUUID Device Name Scheme since we have a GPT disk
-![[install_guide/image028.png]]
+![](install_guide/image028.png)
 
 Choose SINGLEBOOT for the EFI System Partition (ESP)
-![[install_guide/image029.png]]
+![](install_guide/image029.png)
 
 Accept the default of 512mb for the EFI System Partition size
-![[install_guide/image030.png]]
+![](install_guide/image030.png)
 
 Choose the default of 256mb for the Swap partition
-![[install_guide/image031.png]]
+![](install_guide/image031.png)
 
 Choose btrfs for the Filesystem type
-![[install_guide/image032.png]]
+![](install_guide/image032.png)
 
 Confirm Filesystem will be used for / and /home
-![[install_guide/image033.png]]
+![](install_guide/image033.png)
 
 Set the /home volume to 0 to nest the /home directory within the root btrfs partition
-![[install_guide/image034.png]]
+![](install_guide/image034.png)
 
 Confirm the full size will be used for the root partition
-![[install_guide/image035.png]]
+![](install_guide/image035.png)
 
 Confirm the volume /dev/sda will be COMPLETELY ERASED!
-![[install_guide/image036.png]]
+![](install_guide/image036.png)
 
 Filesystem created successfully
-![[install_guide/image037.png]]
+![](install_guide/image037.png)
 
 Quick Setup was successful
-![[install_guide/image038.png]]
+![](install_guide/image038.png)
 
 ## Step 2 - Install Packages
 
 Select "Install Packages" from the main menu
-![[install_guide/image039.png]]
+![](install_guide/image039.png)
 
 Package installation menu:
-![[install_guide/image040.png]]
+![](install_guide/image040.png)
 
 Package installation in progress:
-![[install_guide/image041.png]]
+![](install_guide/image041.png)
 
 Package selection complete:
-![[install_guide/image042.png]]
+![](install_guide/image042.png)
 
 Let it complete, then choose "Configure System"
-![[install_guide/image043.png]]
+![](install_guide/image043.png)
 
 Set a new root password
-![[install_guide/image044.png]]
+![](install_guide/image044.png)
 
 Confirm root password
-![[install_guide/image045.png]]
+![](install_guide/image045.png)
 
 Don't be a baby... neovim for the win!
-![[install_guide/image046.png]]
+![](install_guide/image046.png)
 
 Package installation complete
-![[install_guide/image047.png]]
+![](install_guide/image047.png)
 
 ## MKINITCPIO Setup
 
 MKINITCPIO configuration menu
-![[install_guide/image048.png]]
+![](install_guide/image048.png)
 
 MKINITCPIO generation in progress
-![[install_guide/image049.png]]
+![](install_guide/image049.png)
 
 When that completes you'll see this
 
 MKINITCPIO complete, back to configuration menu
 
 Enter User Management
-![[install_guide/image050.png]]
+![](install_guide/image050.png)
 
 Choose "Set the default shell"
-![[install_guide/image051.png]]
+![](install_guide/image051.png)
 
 Choose BASH (the Omarchy default). I highly recommend against changing to zsh or fish until you have everything fully configured how you want it. Even then all the update scripts, etc. run through Bash, so even though I'm a long time zsh user, I'm personally just going to stick with Bash and adapt my tooling accordingly. The only thing I really miss is better auto completion, but there are packages for that.
-![[install_guide/image052.png]]
+![](install_guide/image052.png)
 
 Shell configuration complete
-![[install_guide/image053.png]]
+![](install_guide/image053.png)
 
 ## Create a user account
 
 User account creation menu:
-![[install_guide/image054.png]]
+![](install_guide/image054.png)
 
 Enter username
-![[install_guide/image055.png]]
+![](install_guide/image055.png)
 
 Enable `user` as Administrator and part of the wheel group
-![[install_guide/image056.png]]
+![](install_guide/image056.png)
 
 Enter full name
-![[install_guide/image057.png]]
+![](install_guide/image057.png)
 
 Set user password
-![[install_guide/image058.png]]
+![](install_guide/image058.png)
 
 Confirm user password
-![[install_guide/image059.png]]
+![](install_guide/image059.png)
 
 New password set successfully
-![[install_guide/image060.png]]
+![](install_guide/image060.png)
 
 User account created successfully
-![[install_guide/image061.png]]
+![](install_guide/image061.png)
 
 Return to main configuration menu
-![[install_guide/image062.png]]
+![](install_guide/image062.png)
 
 ## Return to main menu
 
-![[install_guide/image063.png]]
+![](install_guide/image063.png)
 
 ## Install Bootloader
 
 Bootloader installation menu
-![[install_guide/image064.png]]
+![](install_guide/image064.png)
 
 ## Install the GRUB_EUFI Bootloader
 
-![[install_guide/image065.png]]
+![](install_guide/image065.png)
 
 GRUB installation complete
-![[install_guide/image066.png]]
+![](install_guide/image066.png)
 
 Proceed to open GRUB(2) configuration file in neovim
-![[install_guide/image067.png]]
+![](install_guide/image067.png)
 
 ## Review GRUB_EUFI Configuration file
 
-![[install_guide/image068.png]]
+![](install_guide/image068.png)
 
 Just save and quit again `:wq`
 
-![[install_guide/image069.png]]
+![](install_guide/image069.png)
 
 GRUB configuration saved
-![[install_guide/image070.png]]
+![](install_guide/image070.png)
 
 Bootloader installation complete
-![[install_guide/image071.png]]
+![](install_guide/image071.png)
 
 Final installation summary
-![[install_guide/image072.png]]
+![](install_guide/image072.png)
 
 ## Reboot to your new aarch64 install!
 
-![[install_guide/image073.png]]
+![](install_guide/image073.png)
 
 ## Remove the ISO from the cd/dvd drive before reboot!
 
-![[install_guide/image074.png]]
+![](install_guide/image074.png)
 
 ## Disconnect the ISO in 10s before the reboot happens!
 
-![[install_guide/image075.png]]
+![](install_guide/image075.png)
 
 Then you'll boot to the GRUB menu. Choose:
 
 \*Arch Linux
 
 ...and boot your new system!
-![[install_guide/image076.png]]
+![](install_guide/image076.png)
 
 Arch Linux login prompt
-![[install_guide/image077.png]]
+![](install_guide/image077.png)
 For me it's "jon" and my password and I'm logged in
 
 ## Congrats! You now have aarch64 installed to a VM!
 
-![[install_guide/image078.png]]
+![](install_guide/image078.png)
 
 ## Shutdown the machine so we can resize the hard drive before installing Omarchy
 
-![[install_guide/image079.png]]
+![](install_guide/image079.png)
 
 Again, not sure why, but it seems like a bug that you have to fully install `aarch64` before you can resize the Parallels Hard Drive. Typically you'd be able to do that when setting it up, which would save us some steps, but it's not that big of a deal. Let's increase the Parallels disk size now that `aarch64` is installed.
 
 ## Open Parallels Control Center and right click your VM
 
-![[install_guide/image080.png]]
+![](install_guide/image080.png)
 
 ## Choose "Configure..."
 
-![[install_guide/image081.png]]
+![](install_guide/image081.png)
 
 ## Set the Hard Drive size to be 128gb or larger (I chose 256gb) and click "Apply"
 
-![[install_guide/image082.png]]
+![](install_guide/image082.png)
 
 ## Choose "Continue"
 
-![[install_guide/image083.png]]
+![](install_guide/image083.png)
 
 I chose 256gb for my root volume
-![[install_guide/image084.png]]
+![](install_guide/image084.png)
 
 Enable TRIM
-![[install_guide/image085.png]]
+![](install_guide/image085.png)
 
 The warning says we're not on an SSD, but we are. I _think_ this is fine, but more research is needed. It's possible that if the machine doesn't _think_ it's on an SSD, even though it is, this could impact performance. Please let me know in the comments.
 
 Confirm we want to enable TRIM
-![[install_guide/image086.png]]
+![](install_guide/image086.png)
 
 Press OK
-![[install_guide/image087.png]]
+![](install_guide/image087.png)
 
 Now you have a Parallels VM with Aarch64 and a 256GB Hard drive which is big enough for Omarchy to be installed on.
 
 Go back to the Control Center and double click your new VM to launch it!
 
 Parallels Control Center - ready to launch VM
-![[install_guide/image088.png]]
+![](install_guide/image088.png)
 
 Press Play!
-![[install_guide/image089.png]]
+![](install_guide/image089.png)
 
 At the GRUB bootloader, choose: `*Arch Linux`
-![[install_guide/image090.png]]
+![](install_guide/image090.png)
 
 Now you're back to the login, so login with the root user and the password you set for the root user so that we can install the `sudo` package to allow elevating our normal user with root permissions.
 
-![[install_guide/image091.png]]
+![](install_guide/image091.png)
 
 Install `sudo` and `openssh`
 
@@ -330,13 +330,13 @@ Install `sudo` and `openssh`
 pacman -Syu sudo openssh
 ```
 
-![[install_guide/image092.png]]
+![](install_guide/image092.png)
 
 Confirm package installation
-![[install_guide/image093.png]]
+![](install_guide/image093.png)
 
 Package installation complete
-![[install_guide/image094.png]]
+![](install_guide/image094.png)
 
 ## Instal `vi` so we can check the sudoers files
 
@@ -344,11 +344,11 @@ Package installation complete
 pacman -Syu vi
 ```
 
-![[install_guide/image095.png]]
+![](install_guide/image095.png)
 
 Now run `visudo` and update the sudoers configuration to look like this enabling all commands for users of the `wheel` group, which we previously setup for our user.
 
-![[install_guide/image096.png]]
+![](install_guide/image096.png)
 
 Save and quit the visudo file with `:wq`
 
@@ -361,7 +361,7 @@ systemctl enable sshd
 systemctl start sshd
 ```
 
-![[install_guide/image097.png]]
+![](install_guide/image097.png)
 
 ### Check SSH is running
 
@@ -369,7 +369,7 @@ systemctl start sshd
 systemctl status sshd
 ```
 
-![[install_guide/image098.png]]
+![](install_guide/image098.png)
 
 ## Find your VM's IP address
 
@@ -377,11 +377,11 @@ systemctl status sshd
 ip addr show
 ```
 
-![[install_guide/image099.png]]
+![](install_guide/image099.png)
 
 Now we can connect from our host machine over SSH in something like Ghostty or iTerm2 or Alacrity, etc. to more easily copy and paste commands!
 
-![[install_guide/image100.png]]
+![](install_guide/image100.png)
 
 Ensure that we have full compatibility by adding `export TERM=xterm-256color` to the bottom of the `~/.bashrc` file like so:
 
@@ -389,7 +389,7 @@ Ensure that we have full compatibility by adding `export TERM=xterm-256color` to
 export TERM=xterm-256color
 ```
 
-![[install_guide/image101.png]]
+![](install_guide/image101.png)
 
 Write and quit with `:wq` then close the connection by typing `exit` and then re-connect and you should have the ability to type `clear` amongst other things. We're fully compatible now!
 
@@ -398,11 +398,11 @@ Write and quit with `:wq` then close the connection by typing `exit` and then re
 Check the partition names with `lsblk` and `sudo fdisk -l`
 
 Current partition layout before resize
-![[install_guide/image102.png]]
+![](install_guide/image102.png)
 
 ## Install the `parted` disk utility
 
-![[install_guide/image103.png]]
+![](install_guide/image103.png)
 
 ## Grow the partition with `parted`
 
@@ -410,15 +410,15 @@ Current partition layout before resize
 sudo parted /dev/sda resizepart 4 100%
 ```
 
-![[install_guide/image104.png]]
+![](install_guide/image104.png)
 
 We can ignore the details in the "Information:" response
 
-![[install_guide/image105.png]]
+![](install_guide/image105.png)
 
 Our root partition is now 256gb. Huzzah!
 
-![[install_guide/image106.png]]
+![](install_guide/image106.png)
 
 ## Finally, resize the Btrfs filesystem to use the expanded partition
 
@@ -431,7 +431,7 @@ sudo btrfs filesystem resize max /
 This command resizes the Btrfs filesystem on the root mount point (/) to use the maximum available space on the partition.
 
 Notice how `/dev/sda4` increases in size after this command.
-![[install_guide/image107.png]]
+![](install_guide/image107.png)
 
 At this point I'd recommend taking a snapshot of the system so that if any of the following steps fail, we can easily restore to this point in time.
 
@@ -443,11 +443,11 @@ Shutdown the VM
 shutdown now
 ```
 
-![[install_guide/image108.png]]
+![](install_guide/image108.png)
 
 When you open Parallels back up, before booting, choose "Take Snapshot..." from the "Actions" menu.
 
-![[install_guide/image109.png]]
+![](install_guide/image109.png)
 
 Name and describe your snapshot, save it, and reboot the system. From this safe point, we'll configure the default bootloader that Omarchy's ISO uses so we can take advantage of automatic snapshots the same way an ISO installed to real hardware would.
 
@@ -872,7 +872,7 @@ sudo efibootmgr --bootnext $LIMINE_NUM
 
 Verify `0001` is set for `BootNext` value
 
-![[install_guide/image110.png]]
+![](install_guide/image110.png)
 
 Reboot
 
@@ -890,7 +890,7 @@ Your SSH session will disconnect. Open Parallels and you should see:
 If Limine doesn't boot properly you can "reset" the VM and the system will automatically boot back to GRUB.
 
 Limine bootloader with hierarchical snapshot menu
-![[install_guide/image111.png]]
+![](install_guide/image111.png)
 
 ## Step 11: Make Limine Permanent (After Successful Testing)
 
@@ -919,7 +919,7 @@ Boot0005* GRUB  HD(2,GPT,d810e6b2-9c8b-4...
 
 Reboot one final time and you'll have your permanently configured bootloader with restorable snapshots!
 
-![[install_guide/image112.png]]
+![](install_guide/image112.png)
 
 ## Automatic Update Snapshots
 
@@ -990,10 +990,10 @@ sudo su
 ```
 
 Choose Actions -> Install Parallels Tools...
-![[install_guide/image116.png]]
+![](install_guide/image116.png)
 
 Click Continue if prompted
-![[install_guide/image117.png]]
+![](install_guide/image117.png)
 
 Mount the CD Rom
 
@@ -1023,7 +1023,7 @@ Install parallels tools
 ```
 
 This shows both an error and success. I had to install the aforementioned packages and then installation worked.
-![[install_guide/image118.png]]
+![](install_guide/image118.png)
 
 View the `parallels-tools-install.log` with:
 
@@ -1077,11 +1077,11 @@ Include = /etc/pacman.d/mirrorlist.asahi-alarm
 
 Enter "insert mode" by pressing `i` (i for insert) then type in the mirror like so by hand. Press Escape when you're done typing.
 
-![[install_guide/image113.png]]
+![](install_guide/image113.png)
 
 Now save and quit with `:wq`
 
-![[install_guide/image114.png]]
+![](install_guide/image114.png)
 
 Before we install any packages, we need to add the `asahi-alarm` mirrorlist file with the following command:
 
@@ -1095,7 +1095,7 @@ Then add the following in that file:
 Server = https://github.com/asahi-alarm/asahi-alarm/releases/download/$arch
 ```
 
-![[install_guide/image115.png]]
+![](install_guide/image115.png)
 
 Now update the local package mirror databases
 
