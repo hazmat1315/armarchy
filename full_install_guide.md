@@ -461,52 +461,99 @@ ssh jon@10.211.55.9
 
 # Limine + Btrfs Snapshots on Parallels ARM64
 
-## ⚡ Quick Option: Automated Installation Script
+## 🚨 **New: Enhanced Kernel Versioning System**
 
-**For users who prefer automation over manual configuration:**
+**Omarchy now uses a complete bash-based implementation** that replaces the Java `limine-snapper-sync` with critical improvements:
 
-You can skip the manual Limine installation process below by using our automated script that handles everything automatically:
+### **Critical Bug Fixed:**
 
-```bash
-# Download and run the automated Limine installation script
-curl -O https://raw.githubusercontent.com/jondkinney/armarchy/vm-testing/install-limine-automated.sh
-chmod +x install-limine-automated.sh
-./install-limine-automated.sh
-```
+- **Before:** ALL snapshots used current kernel (causing boot failures)
+- **After:** Each snapshot uses its original kernel files (guaranteed boot compatibility)
 
-**What the automated script does:**
+### **Example Problem Fixed:**
 
-- ✅ Updates system packages
-- ✅ Installs development tools and AUR helper
-- ✅ Configures Snapper for Btrfs snapshots
-- ✅ Downloads Omarchy scripts from ARM fork repository
-- ✅ Installs Plymouth and configures boot hooks
-- ✅ Downloads and installs Limine 9.5.3 bootloader
-- ✅ Sets up hierarchical snapshot menu
-- ✅ Configures automatic snapshot synchronization
-- ✅ Creates global symlinks for command access
+- Snapshot from December 1st (kernel 6.6.8) → was using current kernel 6.7.1 ❌
+- **Result:** Module mismatches, boot failures after restoration
+- **Now:** Snapshot uses its original kernel 6.6.8 ✅
 
-**The script will prompt you to choose:**
+### **New Features:**
 
-- **Test mode**: Boot Limine once for testing (keeps GRUB as default)
-- **Default mode**: Make Limine the permanent default bootloader
+- ✅ **Kernel Version Tracking** - Each snapshot tracks its exact kernel files
+- ✅ **File Deduplication** - Hash-based storage prevents duplicate kernel files
+- ✅ **JSON Manifest** - Tracks snapshot-to-kernel mappings at `/boot/machine-id/snapshots.json`
+- ✅ **Boot Entry Generation** - Creates correct Limine entries with matching kernels
+- ✅ **Corruption Detection** - Automatic integrity checking and repair
+- ✅ **Zero Java Dependency** - Pure bash (~50KB vs 2MB+JVM)
 
-**After running the automated script:**
+**New Tools Available:**
 
-- The system will be fully configured with Limine bootloader
-- Skip ahead to **[📍 RESUME HERE: Post-Automated Script Installation](#-resume-here-post-automated-script-installation)**
-- All manual steps (Step 0-11) are handled automatically
+- `omarchy-limine-snapper-restore` - Enhanced restore with kernel versioning
+- `omarchy-limine-snapper-sync` - Standalone sync tool for snapshot management
+- `omarchy-limine-snapper-list` - Display snapshots with kernel information
+- `omarchy-limine-lib` - Shared library for kernel management functions
 
 ---
 
-## 📋 Manual Installation (Skip if you used the automated script above)
+## 🚀 Complete Automation: Just Install Omarchy!
 
-**For users who prefer step-by-step control:**
+**Everything is now automatic! No manual Limine setup needed.**
 
-## Prerequisites
+Omarchy now includes **complete Limine 9.5.3 installation** with the enhanced kernel versioning system on ARM64. Simply install Omarchy and everything works automatically.
 
-- Fresh Arch Linux ARM64 on Parallels Desktop
-- Btrfs filesystem with `/root` subvolume (no `/home` subvolume)
+**What Omarchy does automatically (UNIFIED for both x86_64 and ARM64):**
+
+**🌟 Universal Improvements (Both Architectures):**
+
+- ✅ **Enhanced automatic snapshots** - Now creates snapshots on both `omarchy-update` AND direct `pacman -Syu`
+- ✅ **Unified snapshot interface** - `omarchy-snapshot` command works consistently
+- ✅ **Improved pacman integration** - Pre-update snapshots via unified hooks
+- ✅ **Architecture-aware restoration** - Uses optimal tools for each platform
+- ✅ **Configures Snapper** with Omarchy defaults
+- ✅ **Installs all dependencies** and snapshot management tools
+
+**🚀 ARM64 Exclusive (Enhanced Kernel Versioning):**
+
+- ✅ **Downloads and installs Limine 9.5.3** (avoiding broken newer versions)
+- ✅ **Creates EFI directory structure** (`/boot/EFI/BOOT/`)
+- ✅ **Installs BOOTAA64.EFI bootloader**
+- ✅ **Creates initial limine.conf** with Tokyo Night theme
+- ✅ **Configures EFI boot entries** and safe boot order
+- ✅ **Enhanced kernel versioning system** (fixes critical boot failures)
+- ✅ **Hash-based kernel file deduplication** in `/boot/machine-id/limine_history/`
+- ✅ **Installs yay AUR helper** and `limine-mkinitcpio-hook`
+- ✅ **Configures mkinitcpio hooks** for snapshot booting support
+- ✅ **Regenerates initramfs** with proper snapshot support
+- ✅ **Creates configuration files** (`/etc/default/limine`)
+
+**⚡ x86_64 (Java + Unified Improvements):**
+
+- ✅ **Uses proven Java limine-snapper-sync** for boot menu management
+- ✅ **Now gets automatic snapshots on direct pacman usage** (NEW!)
+- ✅ **Unified restoration interface** via `omarchy-snapshot restore`
+
+**The complete automatic flow (Both Architectures):**
+
+1. **Install Omarchy** → Complete setup happens automatically (including Limine on ARM64)
+2. **Any system update** → `omarchy-update` OR `pacman -Syu` both create pre-update snapshots
+3. **Snapshot hook triggers** → Architecture-appropriate service updates boot menu
+4. **Kernel files managed** → ARM64: Hash-based deduplication, x86_64: Java system
+5. **Reboot** → Snapshot restoration available from boot menu
+
+**🎯 Key Improvement: Both architectures now get automatic snapshots on direct `pacman -Syu` usage (x86_64 didn't have this before!)**
+
+**No manual intervention required!**
+
+---
+
+## 📋 Manual Limine Setup (DEPRECATED - No Longer Needed)
+
+> **⚠️ This section is now OBSOLETE and should be skipped!**
+>
+> **Why:** Omarchy now automatically includes all Limine tools, kernel versioning, and snapshot management. Manual setup is redundant and may conflict with Omarchy's built-in system.
+>
+> **Instead:** Simply install Omarchy directly after your basic Arch Linux setup. Everything below is handled automatically.
+
+**⏭️ Skip to [Install Omarchy](#step-13-install-omarchy-finally) instead!**
 
 ### Step 0: Verify System State
 
@@ -560,7 +607,7 @@ fi
 ## Step 2: Install Core Snapshot Infrastructure
 
 ```bash
-sudo pacman -S --needed --noconfirm snapper
+sudo pacman -S --needed --noconfirm snapper jq
 ```
 
 #### Install `limine-mkinitcpio-hook` for the `btrfs-overlayfs` hook\*
@@ -643,15 +690,19 @@ mkdir -p "$OMARCHY_BIN"
 cd /tmp &&
 rm -rf omarchy-tmp 2>/dev/null || true &&
 git clone --depth 1 --branch vm-testing https://github.com/jondkinney/armarchy.git omarchy-tmp &&
-cp omarchy-tmp/bin/omarchy-limine-update "$OMARCHY_BIN/" &&
-cp omarchy-tmp/bin/omarchy-limine-snapshot-hook "$OMARCHY_BIN/" &&
-chmod +x "$OMARCHY_BIN/omarchy-limine-update" &&
-chmod +x "$OMARCHY_BIN/omarchy-limine-snapshot-hook" &&
+cp omarchy-tmp/bin/omarchy-limine-* "$OMARCHY_BIN/" &&
+chmod +x "$OMARCHY_BIN"/omarchy-limine-* &&
 
 # Make scripts globally accessible
-sudo ln -sf "$OMARCHY_BIN/omarchy-limine-update" /usr/local/bin/ &&
-sudo ln -sf "$OMARCHY_BIN/omarchy-limine-snapshot-hook" /usr/local/bin/ &&
-echo -e '\nSuccess: omarchy-limine-update and omarchy-limine-snapshot-hook installed!\n'
+for script in "$OMARCHY_BIN"/omarchy-limine-*; do
+    script_name=$(basename "$script")
+    sudo ln -sf "$script" "/usr/local/bin/$script_name"
+done &&
+
+# Install configuration file
+sudo mkdir -p /etc/default &&
+sudo cp omarchy-tmp/etc/default/limine /etc/default/limine &&
+echo -e '\n✅ All Omarchy tools and configuration installed!\n'
 ```
 
 ### Install Systemd Services
@@ -1023,6 +1074,48 @@ sudo efibootmgr -v | grep Limine
 
 It should show: `\EFI\BOOT\BOOTAA64.EFI`
 
+### Kernel Versioning Issues
+
+**If you see kernel versioning warnings in boot entries:**
+
+Check if `jq` is installed:
+
+```bash
+command -v jq || sudo pacman -S jq
+```
+
+**If snapshots show "KERNEL MISMATCH RISK" warnings:**
+
+The system is falling back to the old method. Ensure all new tools are installed:
+
+```bash
+# Check if new tools are available
+ls -la /usr/local/bin/omarchy-limine-*
+```
+
+**If omarchy-limine-lib is missing:**
+
+```bash
+# Re-download and install
+cd /tmp && rm -rf omarchy-tmp &&
+git clone --depth 1 --branch vm-testing https://github.com/jondkinney/armarchy.git omarchy-tmp &&
+sudo cp omarchy-tmp/bin/omarchy-limine-* /usr/local/bin/ &&
+sudo chmod +x /usr/local/bin/omarchy-limine-*
+```
+
+**If configuration file is missing:**
+
+```bash
+sudo cp omarchy-tmp/etc/default/limine /etc/default/limine
+```
+
+**Test kernel versioning is working:**
+
+```bash
+# This should show detailed kernel information
+sudo omarchy-limine-snapper-list --detailed
+```
+
 ---
 
 # 📍 RESUME HERE: Post-Automated Script Installation
@@ -1090,9 +1183,11 @@ View the `parallels-tools-install.log` with:
 cat /var/log/parallels-tools-install.log
 ```
 
-## Step 13: Install Omarchy (finally!)
+## Step 13: Install Omarchy (Complete Automation!)
 
-We made it! Definitely take a snapshot in both Arch and Parallels at this point so that you have a fresh pre-Omarchy install attempt point to revert to.
+🎉 **This is it!** Omarchy now handles **everything automatically** including complete Limine installation, kernel versioning, and snapshot management.
+
+**Take a Parallels snapshot here** for safety, then install Omarchy.
 
 ### Install `wget`
 
@@ -1100,13 +1195,29 @@ We made it! Definitely take a snapshot in both Arch and Parallels at this point 
 sudo pacman -S wget
 ```
 
-### For ARM64 installation, use the ARM fork
+### Install Omarchy (ARM64 with complete Limine automation)
 
 ```bash
 wget -qO- https://raw.githubusercontent.com/nilszeilon/armarchy/master/boot.sh | OMARCHY_REPO=jondkinney/armarchy OMARCHY_REF=vm-testing bash
 ```
 
-Follow the prompts and good luck...
+**What happens automatically during installation:**
+
+- 🔧 **Unified snapshot system** (both `omarchy-update` and `pacman -Syu` create snapshots)
+- 🔧 **Architecture-optimized setup** (Limine 9.5.3 + kernel versioning on ARM64, Java tools on x86_64)
+- 🔧 **All required packages installed** (including dependencies like `jq`)
+- 🔧 **Enhanced pacman integration** (automatic pre-update snapshots for both architectures)
+- 🔧 **Boot menu management configured** (systemd services for real-time updates)
+- 🔧 **Plymouth and mkinitcpio configured** (ARM64 snapshot booting support)
+
+**After installation completes:**
+
+- ✅ **Universal snapshot automation** - Works on both direct pacman usage and omarchy-update
+- ✅ **First `pacman -Syu`** creates snapshot (both architectures now support this!)
+- ✅ **ARM64 gets kernel versioning** (hash-based deduplication, boot compatibility)
+- ✅ **x86_64 gets enhanced integration** (improved pacman hooks, unified interface)
+- ✅ **Reboot shows snapshot restoration options** (architecture-appropriate tools)
+- ✅ **No manual configuration needed for either platform!**
 
 ## Step 14: ARM-Specific Configuration (Automatically Handled)
 

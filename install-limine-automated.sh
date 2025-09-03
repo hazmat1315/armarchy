@@ -6,10 +6,21 @@
 set -e  # Exit on any error
 
 echo "==============================================="
-echo "Limine + Btrfs Snapshots Automated Installer"
+echo "⚠️  DEPRECATED: Limine Setup Script"
 echo "==============================================="
 echo ""
-echo "This script will:"
+echo "🚨 THIS SCRIPT IS NOW OBSOLETE!"
+echo ""
+echo "Why: Omarchy now includes all this functionality built-in."
+echo "The kernel versioning system, Limine setup, and snapshot"
+echo "management are automatically configured when you install Omarchy."
+echo ""
+echo "RECOMMENDED: Install Omarchy directly instead of using this script."
+echo "See: https://github.com/jondkinney/armarchy"
+echo ""
+echo "If you still want to run this script (not recommended):"
+echo ""
+echo "What this script does (now redundant):"
 echo "- Install development tools and yay AUR helper"
 echo "- Install and configure Snapper for Btrfs snapshots"
 echo "- Install Plymouth and configure boot hooks"
@@ -25,7 +36,7 @@ echo "- Fresh Arch Linux ARM64 on Parallels"
 echo "- Btrfs filesystem with /root subvolume"
 echo "- Internet connection for downloading repositories"
 echo ""
-read -p "Press Enter to continue or Ctrl+C to cancel..."
+read -p "Press Enter to continue with DEPRECATED script or Ctrl+C to install Omarchy instead (RECOMMENDED)..."
 
 echo ""
 echo "=== Caching sudo password for script duration ==="
@@ -76,7 +87,7 @@ fi
 
 echo ""
 echo "=== Step 2: Installing Snapshot Tools ==="
-sudo pacman -S --needed --noconfirm snapper
+sudo pacman -S --needed --noconfirm snapper jq
 
 
 echo ""
@@ -274,30 +285,54 @@ if ! git clone --depth 1 --branch vm-testing https://github.com/jondkinney/armar
     exit 1
 fi
 
-if [[ ! -f "omarchy-tmp/bin/omarchy-limine-update" ]] || [[ ! -f "omarchy-tmp/bin/omarchy-limine-snapshot-hook" ]]; then
+if [[ ! -f "omarchy-tmp/bin/omarchy-limine-update" ]] || [[ ! -f "omarchy-tmp/bin/omarchy-limine-snapshot-hook" ]] || [[ ! -f "omarchy-tmp/bin/omarchy-limine-lib" ]]; then
     echo "ERROR: Required Omarchy scripts not found in repository"
     exit 1
 fi
 
 cp omarchy-tmp/bin/omarchy-limine-update "$OMARCHY_BIN/" &&
 cp omarchy-tmp/bin/omarchy-limine-snapshot-hook "$OMARCHY_BIN/" &&
-chmod +x "$OMARCHY_BIN/omarchy-limine-update" &&
-chmod +x "$OMARCHY_BIN/omarchy-limine-snapshot-hook" ||
+cp omarchy-tmp/bin/omarchy-limine-lib "$OMARCHY_BIN/" &&
+cp omarchy-tmp/bin/omarchy-limine-snapper-* "$OMARCHY_BIN/" 2>/dev/null || true &&
+chmod +x "$OMARCHY_BIN"/omarchy-limine-* ||
 { echo "ERROR: Failed to install Omarchy scripts"; exit 1; }
 
 # Make scripts globally accessible
-if ! sudo ln -sf "$OMARCHY_BIN/omarchy-limine-update" /usr/local/bin/; then
-    echo "ERROR: Failed to create global symlink for omarchy-limine-update"
-    exit 1
-fi
-
-if ! sudo ln -sf "$OMARCHY_BIN/omarchy-limine-snapshot-hook" /usr/local/bin/; then
-    echo "ERROR: Failed to create global symlink for omarchy-limine-snapshot-hook"
-    exit 1
-fi
+for script in "$OMARCHY_BIN"/omarchy-limine-*; do
+    if [[ -f "$script" ]]; then
+        script_name=$(basename "$script")
+        if ! sudo ln -sf "$script" "/usr/local/bin/$script_name"; then
+            echo "ERROR: Failed to create global symlink for $script_name"
+            exit 1
+        fi
+    fi
+done
 
 echo "✅ Omarchy scripts downloaded and installed to $OMARCHY_BIN"
 echo "✅ Global symlinks created in /usr/local/bin/"
+
+# Install configuration file
+echo "Installing Limine configuration..."
+if [[ -f "/tmp/omarchy-tmp/etc/default/limine" ]]; then
+    sudo cp /tmp/omarchy-tmp/etc/default/limine /etc/default/limine
+    echo "✅ Limine configuration installed to /etc/default/limine"
+else
+    echo "⚠️  Limine configuration not found, creating default..."
+    sudo mkdir -p /etc/default
+    cat << 'EOF' | sudo tee /etc/default/limine >/dev/null
+# Omarchy Limine-Snapper Configuration
+ESP_PATH="/boot"
+MACHINE_ID=""
+LIMINE_CONFIG_PATH="/boot/limine.conf"
+MAX_SNAPSHOT_ENTRIES=10
+HASH_FUNCTION="sha256"
+SNAPPER_CONFIG="root"
+ROOT_SUBVOLUME_PATH="@"
+ROOT_SNAPSHOTS_PATH="@.snapshots"
+QUIET_MODE="no"
+EOF
+    echo "✅ Default Limine configuration created"
+fi
 
 # Install systemd service files
 echo "Installing systemd services..."
@@ -421,14 +456,19 @@ else
 fi
 echo ""
 echo "Features installed:"
+echo "✅ Enhanced Kernel Versioning System (fixes critical boot failures)"
 echo "✅ Snapper for Btrfs snapshots (limit: 5 snapshots)"
 echo "✅ Limine 9.5.3 bootloader with Tokyo Night theme"
 echo "✅ Hierarchical snapshot menu (/+Omarchy → //Snapshots → ///Snapshot X)"
-echo "✅ Automatic snapshot detection and menu updates"
+echo "✅ Automatic snapshot detection and menu updates with kernel versioning"
 echo "✅ Plymouth boot splash screen"
+echo "✅ Complete Omarchy toolset (bash-based, no Java dependency)"
+echo "✅ JSON manifest system for snapshot-kernel tracking"
+echo "✅ File deduplication for kernel storage"
 echo "✅ Global command accessibility (omarchy-* commands in PATH)"
 echo "✅ Systemd services for real-time snapshot monitoring"
 echo "✅ inotify-tools for efficient directory watching"
+echo "✅ Configuration file at /etc/default/limine"
 echo "✅ Latest 5 snapshots shown (newest first)"
 echo "✅ ARM fork repository integration (vm-testing branch)"
 echo ""
@@ -437,8 +477,11 @@ echo "- omarchy-limine-snapshot.path (monitors /.snapshots for changes)"
 echo "- omarchy-limine-snapshot.service (updates menu when triggered)"
 echo ""
 echo "Commands available:"
-echo "- sudo snapper -c root create --description 'Description' (creates snapshot + auto-updates menu)"
-echo "- sudo omarchy-limine-update (manual menu update)"
+echo "- sudo snapper -c root create --description 'Description' (creates snapshot + auto-updates menu with kernel versioning)"
+echo "- sudo omarchy-limine-update (manual menu update with kernel versioning)"
+echo "- sudo omarchy-limine-snapper-restore (restore snapshots with matching kernels)"
+echo "- sudo omarchy-limine-snapper-sync (sync snapshots to manifest with kernel tracking)"
+echo "- sudo omarchy-limine-snapper-list --detailed (show snapshots with kernel information)"
 echo "- sudo systemctl status omarchy-limine-snapshot.service (check service status)"
 echo "- sudo journalctl -u omarchy-limine-snapshot.service -f (monitor automatic updates)"
 echo "- sudo efibootmgr (manage boot entries)"

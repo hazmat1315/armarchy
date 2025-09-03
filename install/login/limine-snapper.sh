@@ -70,7 +70,7 @@ term_palette_bright: 414868;f7768e;9ece6a;e0af68;7aa2f7;bb9af7;7dcfff;c0caf5
 term_foreground: c0caf5
 term_foreground_bright: c0caf5
 term_background_bright: 24283b
- 
+
 EOF
 
   # Install limine-snapper-sync only on x86_64
@@ -78,8 +78,20 @@ EOF
     sudo pacman -S --noconfirm --needed limine-snapper-sync limine-mkinitcpio-hook
     sudo limine-update
   else
-    # Use our custom implementation for ARM64
+    # Complete ARM64 Limine installation with kernel versioning
+    echo "🚀 Setting up Limine with enhanced kernel versioning for ARM64..."
+
+    # Install Limine 9.5.3 bootloader and create EFI setup
+    source "$OMARCHY_PATH/install/login/limine-install-arm64.sh"
+    install_limine_arm64
+
+    # Note: Snapshot creation is handled by omarchy-update -> omarchy-snapshot create
+    # No need for separate pacman hooks since omarchy-update is the standard way to update
+
+    # Generate enhanced Limine configuration with kernel versioning
     sudo $OMARCHY_PATH/bin/omarchy-limine-update
+
+    echo "✅ Complete ARM64 Limine setup with kernel versioning configured"
   fi
 
   # Match Snapper configs if not installing from the ISO
@@ -103,12 +115,22 @@ EOF
     fi
   done
 
+  # Install unified pacman hook for automatic pre-update snapshots (both architectures)
+  sudo mkdir -p /usr/share/libalpm/hooks
+  sudo cp $OMARCHY_PATH/install/alpm/hooks/10-omarchy-pre-update-snapshot.hook /usr/share/libalpm/hooks/
+  sudo cp $OMARCHY_PATH/bin/omarchy-pre-update-unified /usr/local/bin/
+  sudo chmod +x /usr/local/bin/omarchy-pre-update-unified
+  echo "✅ Unified pre-update snapshot hook installed for both architectures"
+
   if [ -z "$OMARCHY_ARM" ]; then
     chrootable_systemctl_enable limine-snapper-sync.service
+    echo "✅ x86_64: Java limine-snapper-sync.service enabled"
   else
-    # Install our custom service for ARM64 (but don't enable yet - will be enabled after first boot)
+    # Install and enable our custom service for ARM64 with kernel versioning
     sudo cp $OMARCHY_PATH/install/systemd/omarchy-limine-snapshot.* /etc/systemd/system/
-    echo "Limine snapshot service installed but not enabled - will be activated after first successful boot"
+    chrootable_systemctl_enable omarchy-limine-snapshot.path
+    chrootable_systemctl_enable omarchy-limine-snapshot.service
+    echo "✅ ARM64: Bash omarchy-limine-snapshot services enabled with kernel versioning"
   fi
 fi
 

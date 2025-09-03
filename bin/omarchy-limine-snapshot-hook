@@ -49,6 +49,13 @@ fi
 UPDATE_SCRIPT=$(find /home /usr/local -name omarchy-limine-update -executable 2>/dev/null | head -1)
 
 if [[ -x "$UPDATE_SCRIPT" ]]; then
+    # Ensure library is accessible to the update script
+    SCRIPT_DIR=$(dirname "$UPDATE_SCRIPT")
+    if [[ -f "$SCRIPT_DIR/omarchy-limine-lib" ]]; then
+        echo "Using kernel versioning for snapshot boot entries"
+    else
+        echo "WARNING: Kernel versioning library not found - snapshots may have kernel mismatches"
+    fi
     "$UPDATE_SCRIPT"
 elif command -v omarchy-limine-update >/dev/null 2>&1; then
     omarchy-limine-update

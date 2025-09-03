@@ -2,6 +2,15 @@
 
 set -e # Exit on error
 
+# Source the limine kernel versioning library
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+if [[ -f "$SCRIPT_DIR/omarchy-limine-lib" ]]; then
+    source "$SCRIPT_DIR/omarchy-limine-lib"
+else
+    echo "WARNING: omarchy-limine-lib not found - kernel versioning disabled"
+    KERNEL_VERSIONING_ENABLED=false
+fi
+
 LIMINE_CONF="/boot/limine.conf"
 LIMINE_CONF_EFI_LIMINE="/boot/EFI/limine/limine.conf"
 LIMINE_CONF_EFI_BOOT="/boot/EFI/BOOT/limine.conf"
@@ -125,63 +134,79 @@ if [[ -n "$KERNEL_VERSION" ]]; then
   echo "  kernel_cmdline: $CMDLINE" >>"${LIMINE_CONFIG}.tmp"
 fi
 
-# Add Snapshots submenu if snapper is available
+# Add Snapshots submenu with kernel versioning support
 if command -v snapper &>/dev/null && snapper list-configs &>/dev/null 2>&1; then
-    # Get root config snapshots - skip header and get LATEST 5 snapshots (newest first)
-    SNAPSHOTS=$(snapper -c root list --columns number,description 2>/dev/null | grep "^[1-9]" | tail -5 | tac)
+    echo "" >> "${LIMINE_CONFIG}.tmp"
+    echo "  //Snapshots" >> "${LIMINE_CONFIG}.tmp"
+    echo "  comment: Select a snapshot to boot into" >> "${LIMINE_CONFIG}.tmp"
+    
+    # Use kernel versioning if available
+    if [[ "${KERNEL_VERSIONING_ENABLED:-true}" != "false" ]] && command -v jq &>/dev/null; then
+        # Initialize limine library for kernel versioning
+        init_limine_lib 2>/dev/null || true
+        
+        # Sync snapshots to manifest with kernel versioning
+        add_current_snapshots_to_manifest
+        
+        # Generate snapshot entries with proper kernel versions
+        generate_snapshot_entries_for_config "${LIMINE_CONFIG}.tmp"
+    else
+        # Fallback to original method (with kernel version mismatch warning)
+        echo "    ///WARNING: Kernel versioning disabled" >> "${LIMINE_CONFIG}.tmp"
+        echo "    comment: Snapshots may not boot correctly due to kernel mismatches" >> "${LIMINE_CONFIG}.tmp"
+        
+        # Get root config snapshots - skip header and get LATEST 5 snapshots (newest first)
+        SNAPSHOTS=$(snapper -c root list --columns number,description 2>/dev/null | grep "^[1-9]" | tail -5 | tac)
 
-    if [[ -n "$SNAPSHOTS" ]]; then
-        echo "" >> "${LIMINE_CONFIG}.tmp"
-        echo "  //Snapshots" >> "${LIMINE_CONFIG}.tmp"
-        echo "  comment: Select a snapshot to boot into" >> "${LIMINE_CONFIG}.tmp"
+        if [[ -n "$SNAPSHOTS" ]]; then
+            while IFS= read -r line; do
+                if [[ -z "$line" ]]; then continue; fi
 
-        while IFS= read -r line; do
-            if [[ -z "$line" ]]; then continue; fi
-
-            # Parse snapshot info - the line has format "NUM │ DESCRIPTION" with box character
-            NUM=$(echo "$line" | awk '{print $1}')
-            # Extract description - everything after the box character or pipe
-            if echo "$line" | grep -q "│"; then
-                DESC=$(echo "$line" | sed 's/^[^│]*│ *//')
-            else
-                DESC=$(echo "$line" | sed 's/^[0-9]* *//')
-            fi
-
-            # Skip if no snapshot number
-            if [[ -z "$NUM" ]] || [[ "$NUM" == "0" ]]; then continue; fi
-
-            # Check if snapshot directory exists (simpler check)
-            SNAPSHOT_SUBVOL="root/.snapshots/$NUM/snapshot"
-            if [[ ! -d "/.snapshots/$NUM/snapshot" ]]; then
-                continue
-            fi
-
-            # Format the description
-            SNAPSHOT_DESC=$(format_snapshot_desc "$DESC" "$NUM")
-
-            # Add snapshot entry with proper indentation (4 spaces for sub-submenu)
-            echo "    ///Snapshot $NUM - $SNAPSHOT_DESC" >> "${LIMINE_CONFIG}.tmp"
-            echo "    comment: Snapshot $NUM" >> "${LIMINE_CONFIG}.tmp"
-            echo "    protocol: linux" >> "${LIMINE_CONFIG}.tmp"
-
-            # ARM64 uses different paths
-            if [[ "$(uname -m)" == "aarch64" ]]; then
-                echo "    kernel_path: boot():/Image" >> "${LIMINE_CONFIG}.tmp"
-                if [[ -f "/boot/initramfs-linux.img" ]]; then
-                    echo "    module_path: boot():/initramfs-linux.img" >> "${LIMINE_CONFIG}.tmp"
+                # Parse snapshot info - the line has format "NUM │ DESCRIPTION" with box character
+                NUM=$(echo "$line" | awk '{print $1}')
+                # Extract description - everything after the box character or pipe
+                if echo "$line" | grep -q "│"; then
+                    DESC=$(echo "$line" | sed 's/^[^│]*│ *//')
+                else
+                    DESC=$(echo "$line" | sed 's/^[0-9]* *//')
                 fi
-            else
-                echo "    kernel_path: boot():/vmlinuz-${KERNEL_VERSION}" >> "${LIMINE_CONFIG}.tmp"
-                if [[ -f "/boot/initramfs-${KERNEL_VERSION}.img" ]]; then
-                    echo "    module_path: boot():/initramfs-${KERNEL_VERSION}.img" >> "${LIMINE_CONFIG}.tmp"
+
+                # Skip if no snapshot number
+                if [[ -z "$NUM" ]] || [[ "$NUM" == "0" ]]; then continue; fi
+
+                # Check if snapshot directory exists (simpler check)
+                SNAPSHOT_SUBVOL="root/.snapshots/$NUM/snapshot"
+                if [[ ! -d "/.snapshots/$NUM/snapshot" ]]; then
+                    continue
                 fi
-            fi
 
-            # Modify cmdline for snapshot
-            SNAPSHOT_CMDLINE=$(echo "$CMDLINE" | sed "s|rootflags=subvol=[^ ]*|rootflags=subvol=$SNAPSHOT_SUBVOL|")
-            echo "    kernel_cmdline: $SNAPSHOT_CMDLINE" >> "${LIMINE_CONFIG}.tmp"
+                # Format the description
+                SNAPSHOT_DESC=$(format_snapshot_desc "$DESC" "$NUM")
 
-        done <<< "$SNAPSHOTS"
+                # Add snapshot entry with proper indentation (4 spaces for sub-submenu)
+                echo "    ///Snapshot $NUM - $SNAPSHOT_DESC (KERNEL MISMATCH RISK)" >> "${LIMINE_CONFIG}.tmp"
+                echo "    comment: WARNING: Uses current kernel, may not boot" >> "${LIMINE_CONFIG}.tmp"
+                echo "    protocol: linux" >> "${LIMINE_CONFIG}.tmp"
+
+                # ARM64 uses different paths - CURRENT kernel (this is the problem!)
+                if [[ "$(uname -m)" == "aarch64" ]]; then
+                    echo "    kernel_path: boot():/Image" >> "${LIMINE_CONFIG}.tmp"
+                    if [[ -f "/boot/initramfs-linux.img" ]]; then
+                        echo "    module_path: boot():/initramfs-linux.img" >> "${LIMINE_CONFIG}.tmp"
+                    fi
+                else
+                    echo "    kernel_path: boot():/vmlinuz-${KERNEL_VERSION}" >> "${LIMINE_CONFIG}.tmp"
+                    if [[ -f "/boot/initramfs-${KERNEL_VERSION}.img" ]]; then
+                        echo "    module_path: boot():/initramfs-${KERNEL_VERSION}.img" >> "${LIMINE_CONFIG}.tmp"
+                    fi
+                fi
+
+                # Modify cmdline for snapshot
+                SNAPSHOT_CMDLINE=$(echo "$CMDLINE" | sed "s|rootflags=subvol=[^ ]*|rootflags=subvol=$SNAPSHOT_SUBVOL|")
+                echo "    kernel_cmdline: $SNAPSHOT_CMDLINE" >> "${LIMINE_CONFIG}.tmp"
+
+            done <<< "$SNAPSHOTS"
+        fi
     fi
 fi
 

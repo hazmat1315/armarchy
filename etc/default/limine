@@ -1,0 +1,50 @@
+# Omarchy Limine-Snapper Configuration
+# Configuration file for omarchy-limine-snapper-* scripts
+#
+# Based on limine-snapper-sync configuration format
+# Place this file at /etc/default/limine
+
+# ESP (EFI System Partition) mount point
+# This is where your Limine bootloader and kernel files are stored
+ESP_PATH="/boot"
+
+# Machine ID for organizing files
+# Leave empty to auto-detect from /etc/machine-id
+MACHINE_ID=""
+
+# Limine configuration file path
+# This file will be updated with snapshot boot entries
+LIMINE_CONFIG_PATH="/boot/EFI/BOOT/limine.conf"
+
+# Maximum number of snapshot entries to keep in boot menu
+# Older snapshots will be pruned from the boot menu but remain in Snapper
+MAX_SNAPSHOT_ENTRIES=10
+
+# Hash function for file deduplication
+# Options: "sha256", "sha1", "blake3"
+# Note: blake3 requires 'b3sum' command to be installed
+HASH_FUNCTION="sha256"
+
+# Snapper configuration name
+# Usually "root" for the root filesystem
+SNAPPER_CONFIG="root"
+
+# Root subvolume path (relative to Btrfs root)
+# Usually "@" for most distributions
+ROOT_SUBVOLUME_PATH="@"
+
+# Snapshots subvolume path (relative to Btrfs root)
+# Usually "@.snapshots" or ".snapshots"
+ROOT_SNAPSHOTS_PATH="@.snapshots"
+
+# Enable quiet mode (suppress success messages)
+# Options: "yes", "no"
+QUIET_MODE="no"
+
+# Commands to run before saving Limine configuration
+# Use && or || to chain multiple commands
+#COMMANDS_BEFORE_SAVE=""
+
+# Commands to run after saving Limine configuration  
+# Use && or || to chain multiple commands
+#COMMANDS_AFTER_SAVE=""

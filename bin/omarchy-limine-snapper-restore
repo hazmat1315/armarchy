@@ -2,6 +2,15 @@
 
 set -e # Exit on error
 
+# Source the limine library
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+if [[ -f "$SCRIPT_DIR/omarchy-limine-lib" ]]; then
+  source "$SCRIPT_DIR/omarchy-limine-lib"
+else
+  echo "ERROR: omarchy-limine-lib not found"
+  exit 1
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,312 +22,449 @@ NC='\033[0m' # No Color
 BTRFS_MOUNT_POINT="/run/lss"
 ROOT_SUBVOL="@"
 SNAPSHOTS_SUBVOL="@.snapshots"
+DRY_RUN=false
 
 # Function to print colored output
 print_info() {
-    echo -e "${BLUE}$1${NC}"
+  echo -e "${BLUE}$1${NC}"
 }
 
 print_success() {
-    echo -e "${GREEN}Command succeeded: $1${NC}"
+  echo -e "${GREEN}Command succeeded: $1${NC}"
 }
 
 print_warning() {
-    echo -e "${YELLOW}$1${NC}"
+  echo -e "${YELLOW}$1${NC}"
 }
 
 print_error() {
-    echo -e "${RED}ERROR: $1${NC}"
+  echo -e "${RED}ERROR: $1${NC}"
 }
 
-# Function to check if running as root
-check_root() {
-    if [[ $EUID -ne 0 ]]; then
-        print_error "This script must be run as root or with sudo"
-        exit 1
-    fi
+# Function to check if we're running from a snapshot
+check_if_in_snapshot() {
+  local current_root=$(findmnt -n -o SOURCE /)
+  if [[ "$current_root" == *"/.snapshots/"* ]]; then
+    return 0 # We are in a snapshot
+  else
+    return 1 # We are not in a snapshot
+  fi
 }
 
 # Function to get root device and mount point
 get_root_device() {
-    ROOT_DEVICE=$(findmnt -n -o SOURCE /)
-    ROOT_DEVICE_CLEAN=$(echo "$ROOT_DEVICE" | sed 's/\[.*\]$//')
+  ROOT_DEVICE=$(findmnt -n -o SOURCE /)
+  ROOT_DEVICE_CLEAN=$(echo "$ROOT_DEVICE" | sed 's/\[.*\]$//')
 
-    if [[ -z "$ROOT_DEVICE_CLEAN" ]]; then
-        print_error "Could not detect root device"
-        exit 1
-    fi
+  if [[ -z "$ROOT_DEVICE_CLEAN" ]]; then
+    print_error "Could not detect root device"
+    exit 1
+  fi
 
-    echo "$ROOT_DEVICE_CLEAN"
+  echo "$ROOT_DEVICE_CLEAN"
 }
 
 # Function to mount btrfs filesystem
 mount_btrfs() {
-    local device=$1
+  local device=$1
 
-    print_info "Time to start mounting Btrfs."
+  print_info "Time to start mounting Btrfs."
 
-    if [[ ! -d "$BTRFS_MOUNT_POINT" ]]; then
-        mkdir -p "$BTRFS_MOUNT_POINT"
-    fi
+  if [[ ! -d "$BTRFS_MOUNT_POINT" ]]; then
+    mkdir -p "$BTRFS_MOUNT_POINT"
+  fi
 
-    if mount | grep -q "$BTRFS_MOUNT_POINT"; then
-        umount "$BTRFS_MOUNT_POINT" 2>/dev/null || true
-    fi
+  if mount | grep -q "$BTRFS_MOUNT_POINT"; then
+    umount "$BTRFS_MOUNT_POINT" 2>/dev/null || true
+  fi
 
-    if mount -t btrfs -o subvol=/ "$device" "$BTRFS_MOUNT_POINT"; then
-        print_success "mount -t btrfs -o subvol=/ $device $BTRFS_MOUNT_POINT"
-    else
-        print_error "Failed to mount btrfs filesystem"
-        exit 1
-    fi
+  if mount -t btrfs -o subvol=/ "$device" "$BTRFS_MOUNT_POINT"; then
+    print_success "mount -t btrfs -o subvol=/ $device $BTRFS_MOUNT_POINT"
+  else
+    print_error "Failed to mount btrfs filesystem"
+    exit 1
+  fi
 }
 
 # Function to list snapshots
 list_snapshots() {
-    echo
-    printf "%-4s %-20s %s\n" "ID" "Date" "Description"
-    printf "%-4s %-20s %s\n" "---" "--------------------" "-----------"
+  echo
+  printf "%-4s %-20s %s\n" "ID" "Date" "Description"
+  printf "%-4s %-20s %s\n" "---" "--------------------" "-----------"
 
-    # Get snapshots from snapper, skip header
-    snapper -c root list --columns number,date,description 2>/dev/null | tail -n +3 | while IFS='|' read -r num date desc; do
-        # Clean up the fields
-        num=$(echo "$num" | xargs)
-        date=$(echo "$date" | xargs)
-        desc=$(echo "$desc" | xargs)
+  # Use manifest-based listing (same as omarchy-limine-snapper-list)
+  local manifest=$(get_manifest)
+  local count=$(echo "$manifest" | jq '.snapshotEntries | length' 2>/dev/null || echo "0")
 
-        # Skip empty lines and invalid entries
-        if [[ -n "$num" && "$num" != "0" ]]; then
-            # Check if snapshot directory exists
-            if [[ -d "/.snapshots/$num/snapshot" ]]; then
-                printf "%-4s %-20s %s\n" "$num" "$date" "$desc"
-            fi
-        fi
-    done
+  if [[ "$count" -eq 0 ]]; then
+    echo "No snapshots found in manifest."
+    echo "Run 'omarchy-limine-snapper-sync' to sync with Snapper snapshots."
+    return 1
+  fi
+
+  for ((i = 0; i < count; i++)); do
+    local entry=$(echo "$manifest" | jq ".snapshotEntries[$i]")
+    local id=$(echo "$entry" | jq -r '.snapperEntry.snapshotID')
+    local date=$(echo "$entry" | jq -r '.snapperEntry.localTime' | cut -d' ' -f1-3) # Date and time
+    local desc=$(echo "$entry" | jq -r '.snapperEntry.properties.description')
+
+    printf "%-4s %-20s %s\n" "$id" "$date" "$desc"
+  done
 }
 
 # Function to validate snapshot ID
 validate_snapshot() {
-    local snapshot_id=$1
+  local snapshot_id=$1
 
-    if [[ ! "$snapshot_id" =~ ^[0-9]+$ ]]; then
-        return 1
-    fi
+  if [[ ! "$snapshot_id" =~ ^[0-9]+$ ]]; then
+    return 1
+  fi
 
-    if [[ ! -d "/.snapshots/$snapshot_id/snapshot" ]]; then
-        return 1
-    fi
+  # Check if snapshot exists in manifest (this means it's tracked with kernel versioning)
+  local snapshot_entry=$(get_snapshot_entry "$snapshot_id" 2>/dev/null)
+  if [[ -z "$snapshot_entry" ]]; then
+    print_error "Snapshot $snapshot_id not found in kernel versioning manifest"
+    print_info "Run 'omarchy-limine-snapper-sync' to sync snapshots"
+    return 1
+  fi
 
-    if [[ ! -d "$BTRFS_MOUNT_POINT/$SNAPSHOTS_SUBVOL/$snapshot_id/snapshot" ]]; then
-        return 1
-    fi
+  # Check if snapshot directory exists in mounted Btrfs
+  if [[ ! -d "$BTRFS_MOUNT_POINT/$SNAPSHOTS_SUBVOL/$snapshot_id/snapshot" ]]; then
+    print_error "Snapshot $snapshot_id directory not found in Btrfs filesystem"
+    return 1
+  fi
 
-    return 0
+  return 0
 }
 
 # Function to get user input for snapshot selection
 get_snapshot_choice() {
-    while true; do
-        echo
-        echo "Which snapshot ID do you want to restore?"
-        echo "Type an ID or \"[c]ancel\" to abort the restore."
-        echo
-        read -p "Enter your choice: " choice
+  while true; do
+    echo
+    echo "Which snapshot ID do you want to restore?"
+    echo "Type an ID or \"[c]ancel\" to abort the restore."
+    echo
+    read -p "Enter your choice: " choice
 
-        if [[ "$choice" == "c" || "$choice" == "cancel" ]]; then
-            echo "Restore cancelled by user."
-            exit 0
-        fi
+    if [[ "$choice" == "c" || "$choice" == "cancel" ]]; then
+      echo "Restore cancelled by user."
+      exit 0
+    fi
 
-        if validate_snapshot "$choice"; then
-            echo "$choice"
-            return 0
-        else
-            print_error "Snapshot ID '$choice' does not exist or is not accessible. Please choose an existing snapshot."
-        fi
-    done
+    if validate_snapshot "$choice"; then
+      echo "$choice"
+      return 0
+    else
+      print_error "Snapshot ID '$choice' does not exist or is not accessible. Please choose an existing snapshot."
+    fi
+  done
 }
 
 # Function to get backup description
 get_backup_description() {
-    echo
-    echo "Enter a description for the \"backup\" of the subvolume: @"
-    echo
-    read -p "Enter your input: " backup_desc
-    echo "$backup_desc"
+  echo
+  echo "Enter a description for the \"backup\" of the subvolume: @"
+  echo
+  read -p "Enter your input: " backup_desc
+  echo "$backup_desc"
 }
 
 # Function to create backup timestamp
 get_timestamp() {
-    date +"%Y-%m-%dT%H:%M:%S"
+  date +"%Y-%m-%dT%H:%M:%S"
 }
 
 # Function to restore snapshot
 restore_snapshot() {
-    local snapshot_id=$1
-    local backup_desc=$2
-    local timestamp=$(get_timestamp)
-    local backup_name="@_backup_$timestamp"
+  local snapshot_id=$1
+  local backup_desc=$2
+  local timestamp=$(get_timestamp)
+  local new_subvol_name="@_lss_$timestamp"
+  local backup_name="@_backup_$timestamp"
 
-    print_info "Time to start restoring snapshot ID: $snapshot_id"
+  print_info "Time to start restoring snapshot ID: $snapshot_id"
 
-    # Create snapshot of current root for backup
-    if btrfs subvolume snapshot "$BTRFS_MOUNT_POINT/$ROOT_SUBVOL" "$BTRFS_MOUNT_POINT/$SNAPSHOTS_SUBVOL/$snapshot_id/snapshot" 2>/dev/null; then
-        print_success "Create snapshot of '$BTRFS_MOUNT_POINT/$ROOT_SUBVOL' -> '$BTRFS_MOUNT_POINT/$SNAPSHOTS_SUBVOL/$snapshot_id/snapshot'"
-    else
-        print_error "Failed to create backup snapshot"
-        return 1
+  if [[ "$DRY_RUN" == "true" ]]; then
+    print_info "DRY-RUN: Would perform the following actions:"
+    echo "  FILESYSTEM OPERATIONS:"
+    echo "    1. Create writable snapshot: $BTRFS_MOUNT_POINT/$SNAPSHOTS_SUBVOL/$snapshot_id/snapshot -> $BTRFS_MOUNT_POINT/$new_subvol_name"
+    echo "    2. Move current root: $BTRFS_MOUNT_POINT/$ROOT_SUBVOL -> $BTRFS_MOUNT_POINT/$backup_name"
+    echo "    3. Move new snapshot to root: $BTRFS_MOUNT_POINT/$new_subvol_name -> $BTRFS_MOUNT_POINT/$ROOT_SUBVOL"
+    echo "    4. Move child subvolumes from backup to new root"
+    echo "    5. Create Snapper entry for backup with next available ID"
+    echo "    6. Set backup snapshot as read-only"
+    echo ""
+    echo "  KERNEL VERSIONING OPERATIONS:"
+    echo "    7. Backup current kernel files to manifest history"
+    echo "    8. Restore kernel files for snapshot $snapshot_id from history"
+    echo "    9. Update ESP with matching kernel versions"
+    echo "    10. Verify kernel file integrity and boot compatibility"
+    return 0
+  fi
+
+  # Step 1: Create a read-write snapshot from the selected snapshot (this will become new root)
+  if btrfs subvolume snapshot "$BTRFS_MOUNT_POINT/$SNAPSHOTS_SUBVOL/$snapshot_id/snapshot" "$BTRFS_MOUNT_POINT/$new_subvol_name"; then
+    print_success "btrfs subvolume snapshot '$BTRFS_MOUNT_POINT/$SNAPSHOTS_SUBVOL/$snapshot_id/snapshot' '$BTRFS_MOUNT_POINT/$new_subvol_name'"
+  else
+    print_error "Failed to create writable snapshot from snapshot $snapshot_id"
+    return 1
+  fi
+
+  # Step 2: Move current root to backup location
+  if mv "$BTRFS_MOUNT_POINT/$ROOT_SUBVOL" "$BTRFS_MOUNT_POINT/$backup_name"; then
+    print_success "mv '$BTRFS_MOUNT_POINT/$ROOT_SUBVOL' '$BTRFS_MOUNT_POINT/$backup_name'"
+  else
+    print_error "Failed to backup current root"
+    # Cleanup the created snapshot
+    btrfs subvolume delete "$BTRFS_MOUNT_POINT/$new_subvol_name" 2>/dev/null
+    return 1
+  fi
+
+  # Step 3: Move the new snapshot to root location
+  if mv "$BTRFS_MOUNT_POINT/$new_subvol_name" "$BTRFS_MOUNT_POINT/$ROOT_SUBVOL"; then
+    print_success "mv '$BTRFS_MOUNT_POINT/$new_subvol_name' '$BTRFS_MOUNT_POINT/$ROOT_SUBVOL'"
+  else
+    print_error "Failed to move restored snapshot to root"
+    # Try to restore the backup
+    mv "$BTRFS_MOUNT_POINT/$backup_name" "$BTRFS_MOUNT_POINT/$ROOT_SUBVOL" 2>/dev/null
+    return 1
+  fi
+
+  print_info "Time to move all child subvolumes back to the parent subvolume: @"
+
+  # Get list of child subvolumes from the backup
+  local child_subvolumes=()
+  while IFS= read -r line; do
+    # Extract subvolume path relative to the backup subvolume
+    local subvol_path=$(echo "$line" | awk '{print $NF}')
+    if [[ "$subvol_path" == "$backup_name"/* ]]; then
+      local relative_path="${subvol_path#$backup_name/}"
+      child_subvolumes+=("$relative_path")
+    fi
+  done < <(btrfs subvolume list -o "$BTRFS_MOUNT_POINT/$backup_name" 2>/dev/null || true)
+
+  # Move child subvolumes back to the new root
+  for subvol in "${child_subvolumes[@]}" ".snapshots" "var/lib/portables" "var/lib/machines"; do
+    local source_path="$BTRFS_MOUNT_POINT/$backup_name/$subvol"
+    local dest_dir="$BTRFS_MOUNT_POINT/$ROOT_SUBVOL/$(dirname "$subvol")"
+    local dest_path="$BTRFS_MOUNT_POINT/$ROOT_SUBVOL/$subvol"
+
+    if [[ -d "$source_path" ]]; then
+      # Ensure destination directory exists
+      mkdir -p "$dest_dir" 2>/dev/null || true
+
+      # Remove destination if it exists (might be an empty directory)
+      if [[ -e "$dest_path" ]]; then
+        rmdir "$dest_path" 2>/dev/null || true
+      fi
+
+      if mv "$source_path" "$dest_path" 2>/dev/null; then
+        print_success "mv '$source_path' '$dest_path'"
+      fi
+    fi
+  done
+
+  print_info "Time to add the \"$backup_desc\" entry to the Snapper list and Limine snapshot list."
+
+  # Find the highest snapshot ID in Snapper list to avoid conflicts
+  local latest_snapshot_id=0
+  for dir in "$BTRFS_MOUNT_POINT/$SNAPSHOTS_SUBVOL"/*; do
+    if [[ -d "$dir" && $(basename "$dir") =~ ^[0-9]+$ ]]; then
+      local id=$(basename "$dir")
+      if [[ $id -gt $latest_snapshot_id ]]; then
+        latest_snapshot_id=$id
+      fi
+    fi
+  done
+
+  # Use next available ID (add 2 to avoid race conditions with Snapper)
+  local new_snapshot_id=$((latest_snapshot_id + 2))
+  local backup_info_dir="$BTRFS_MOUNT_POINT/$SNAPSHOTS_SUBVOL/$new_snapshot_id"
+
+  if mkdir -p "$backup_info_dir"; then
+    # Move the backup subvolume to snapshots location
+    if mv "$BTRFS_MOUNT_POINT/${backup_name}" "$backup_info_dir/snapshot"; then
+      print_success "mv '$BTRFS_MOUNT_POINT/${backup_name}' '$backup_info_dir/snapshot'"
     fi
 
-    # Create read-write snapshot from the selected snapshot
-    if btrfs subvolume snapshot "$BTRFS_MOUNT_POINT/$SNAPSHOTS_SUBVOL/$snapshot_id/snapshot" "$BTRFS_MOUNT_POINT/${backup_name}"; then
-        print_success "btrfs subvolume snapshot '$BTRFS_MOUNT_POINT/$SNAPSHOTS_SUBVOL/$snapshot_id/snapshot' '$BTRFS_MOUNT_POINT/${backup_name}'"
-    else
-        print_error "Failed to create writable snapshot"
-        return 1
+    # Set read-only property
+    if btrfs property set "$backup_info_dir/snapshot" ro true; then
+      print_success "btrfs property set '$backup_info_dir/snapshot' ro true"
     fi
 
-    # Move current root to backup location
-    if mv "$BTRFS_MOUNT_POINT/$ROOT_SUBVOL" "$BTRFS_MOUNT_POINT/${backup_name}"; then
-        print_success "mv '$BTRFS_MOUNT_POINT/$ROOT_SUBVOL' '$BTRFS_MOUNT_POINT/${backup_name}'"
-    else
-        print_error "Failed to backup current root"
-        return 1
-    fi
-
-    # Move restored snapshot to root location
-    if mv "$BTRFS_MOUNT_POINT/${backup_name}" "$BTRFS_MOUNT_POINT/$ROOT_SUBVOL"; then
-        print_success "mv '$BTRFS_MOUNT_POINT/${backup_name}' '$BTRFS_MOUNT_POINT/$ROOT_SUBVOL'"
-    else
-        print_error "Failed to move restored snapshot to root"
-        return 1
-    fi
-
-    print_info "Time to move all child subvolumes back to the parent subvolume: @"
-
-    # Handle common child subvolumes if they exist
-    for subvol in "var/lib/portables" "var/lib/machines" ".snapshots"; do
-        local source_path="$BTRFS_MOUNT_POINT/${backup_name}/$subvol"
-        local dest_path="$BTRFS_MOUNT_POINT/$ROOT_SUBVOL/$subvol"
-
-        if [[ -d "$source_path" ]]; then
-            if mv "$source_path" "$dest_path"; then
-                print_success "mv '$source_path' '$dest_path'"
-            fi
-        fi
-    done
-
-    print_info "Time to add the \"$backup_desc\" entry to the Snapper list and Limine snapshot list."
-
-    # Create snapper info directory if it doesn't exist
-    local backup_info_dir="$BTRFS_MOUNT_POINT/$SNAPSHOTS_SUBVOL/$(date +%s)"
-    if mkdir -p "$backup_info_dir"; then
-        # Move the backup subvolume to snapshots location
-        if mv "$BTRFS_MOUNT_POINT/${backup_name}" "$backup_info_dir/snapshot"; then
-            print_success "mv '$BTRFS_MOUNT_POINT/${backup_name}' '$backup_info_dir/snapshot'"
-        fi
-
-        # Set read-only property
-        if btrfs property set "$backup_info_dir/snapshot" ro true; then
-            print_success "btrfs property set '$backup_info_dir/snapshot' ro true"
-        fi
-
-        # Create info.xml for snapper
-        cat > "$backup_info_dir/info.xml" << EOF
+    # Create info.xml for snapper with proper formatting
+    local utc_date=$(date -u +"%Y-%m-%d %H:%M:%S")
+    cat >"$backup_info_dir/info.xml" <<EOF
 <?xml version="1.0"?>
 <snapshot>
   <type>single</type>
-  <num>$(basename "$backup_info_dir")</num>
-  <date>$(date -Iseconds)</date>
+  <num>$new_snapshot_id</num>
+  <date>$utc_date</date>
   <description>$backup_desc</description>
+  <cleanup></cleanup>
+  <userdata>
+    <key>important</key>
+    <value>yes</value>
+  </userdata>
 </snapshot>
 EOF
-        print_success "Saved $backup_info_dir/info.xml"
+    print_success "Saved $backup_info_dir/info.xml with ID $new_snapshot_id"
+  fi
+
+  print_info "Time to backup current kernel files and restore snapshot kernel versions."
+
+  # Step 1: Backup current kernel files to manifest (this creates a new snapshot entry)
+  if [[ "$DRY_RUN" != "true" ]]; then
+    local kernel_backup_id=$(backup_current_kernel_files "$backup_desc")
+    if [[ $? -eq 0 ]]; then
+      print_success "Current kernel files backed up as snapshot entry $kernel_backup_id"
+    else
+      print_error "Failed to backup current kernel files"
+      return 1
     fi
+  fi
 
-    print_info "Time to restore matching kernel versions."
-
-    # Handle kernel files cleanup - remove old kernel files that might conflict
-    local boot_dir="$BTRFS_MOUNT_POINT/$ROOT_SUBVOL/boot"
-    if [[ -d "$boot_dir" ]]; then
-        # Clean up any conflicting kernel files
-        find "$boot_dir" -name "*.efi" -type f -delete 2>/dev/null || true
-        print_success "Cleaned up old kernel files"
+  # Step 2: Restore kernel files for the target snapshot
+  if [[ "$DRY_RUN" != "true" ]]; then
+    if restore_kernel_files "$snapshot_id"; then
+      print_success "Restored kernel files for snapshot $snapshot_id"
+    else
+      print_warning "Some kernel files could not be restored - system may not boot properly"
     fi
+  fi
 
-    return 0
+  # Step 3: Ensure boot directory exists in restored snapshot
+  local boot_dir="$BTRFS_MOUNT_POINT/$ROOT_SUBVOL/boot"
+  if [[ ! -d "$boot_dir" ]]; then
+    print_warning "Boot directory not found in restored snapshot"
+  else
+    print_success "Boot directory preserved in restored snapshot"
+  fi
+
+  # Sync filesystem to ensure all changes are written
+  sync
+
+  return 0
 }
 
 # Function to ask about reboot
 ask_reboot() {
-    echo
-    echo "The restore is complete. Please reboot now:"
-    echo "Type \"[y]es\" to reboot, \"[n]o\" or \"[c]ancel\" to abort rebooting."
-    echo
+  echo
+  echo "The restore is complete. Please reboot now:"
+  echo "Type \"[y]es\" to reboot, \"[n]o\" or \"[c]ancel\" to abort rebooting."
+  echo
 
-    while true; do
-        read -p "Enter your choice: " choice
-        case "$choice" in
-            y|yes)
-                print_info "Rebooting system..."
-                reboot
-                ;;
-            n|no|c|cancel)
-                echo "Reboot cancelled. Please reboot manually when ready."
-                exit 0
-                ;;
-            *)
-                print_warning "Please enter 'y' for yes, 'n' for no, or 'c' to cancel."
-                ;;
-        esac
-    done
+  while true; do
+    read -p "Enter your choice: " choice
+    case "$choice" in
+    y | yes)
+      print_info "Rebooting system..."
+      reboot
+      ;;
+    n | no | c | cancel)
+      echo "Reboot cancelled. Please reboot manually when ready."
+      exit 0
+      ;;
+    *)
+      print_warning "Please enter 'y' for yes, 'n' for no, or 'c' to cancel."
+      ;;
+    esac
+  done
 }
 
 # Function to cleanup on exit
 cleanup() {
-    if mount | grep -q "$BTRFS_MOUNT_POINT"; then
-        umount "$BTRFS_MOUNT_POINT" 2>/dev/null || true
-    fi
+  if mount | grep -q "$BTRFS_MOUNT_POINT"; then
+    umount "$BTRFS_MOUNT_POINT" 2>/dev/null || true
+  fi
 }
 
 # Main function
 main() {
-    # Set trap for cleanup
-    trap cleanup EXIT
+  # Parse command line arguments
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+    --dry-run)
+      DRY_RUN=true
+      print_warning "Running in DRY-RUN mode - no changes will be made"
+      shift
+      ;;
+    --help | -h)
+      echo "Usage: $0 [OPTIONS]"
+      echo "Restore a Btrfs snapshot managed by Snapper"
+      echo ""
+      echo "Options:"
+      echo "  --dry-run    Show what would be done without making changes"
+      echo "  --help, -h   Show this help message"
+      exit 0
+      ;;
+    *)
+      print_error "Unknown option: $1"
+      echo "Use --help for usage information"
+      exit 1
+      ;;
+    esac
+  done
 
-    # Check if running as root
-    check_root
+  # Set trap for cleanup
+  trap cleanup EXIT
 
-    # Check if snapper is available
-    if ! command -v snapper &>/dev/null; then
-        print_error "snapper is not installed or not in PATH"
-        exit 1
-    fi
+  # Check if running as root, if not re-run with sudo
+  if [[ $EUID -ne 0 ]]; then
+    print_info "Root privileges required, elevating with sudo..."
+    exec sudo "$0" "$@"
+    exit $?
+  fi
 
-    # Get root device
-    root_device=$(get_root_device)
+  # Check if snapper is available
+  if ! command -v snapper &>/dev/null; then
+    print_error "snapper is not installed or not in PATH"
+    exit 1
+  fi
 
-    # Mount btrfs filesystem
-    mount_btrfs "$root_device"
+  # Check if btrfs-progs is available
+  if ! command -v btrfs &>/dev/null; then
+    print_error "btrfs-progs is not installed or not in PATH"
+    exit 1
+  fi
 
-    # List available snapshots
-    echo
-    list_snapshots
+  # Initialize limine library and check dependencies
+  init_limine_lib
+  if ! check_dependencies; then
+    print_error "Missing dependencies for kernel versioning"
+    exit 1
+  fi
 
-    # Get user's snapshot choice
-    snapshot_id=$(get_snapshot_choice)
+  # Check if running from a snapshot
+  if check_if_in_snapshot; then
+    print_warning "You are currently running from a snapshot!"
+    print_warning "This may affect the restoration process."
+  fi
 
-    # Get backup description
-    backup_desc=$(get_backup_description)
+  # Get root device
+  root_device=$(get_root_device)
 
-    # Perform the restoration
-    if restore_snapshot "$snapshot_id" "$backup_desc"; then
-        # Ask about rebooting
-        ask_reboot
-    else
-        print_error "Snapshot restoration failed"
-        exit 1
-    fi
+  # Mount btrfs filesystem
+  mount_btrfs "$root_device"
+
+  # List available snapshots
+  echo
+  list_snapshots
+
+  # Get user's snapshot choice
+  snapshot_id=$(get_snapshot_choice)
+
+  # Get backup description
+  backup_desc=$(get_backup_description)
+
+  # Perform the restoration
+  if restore_snapshot "$snapshot_id" "$backup_desc"; then
+    # Ask about rebooting
+    ask_reboot
+  else
+    print_error "Snapshot restoration failed"
+    exit 1
+  fi
 }
 
 # Run main function
