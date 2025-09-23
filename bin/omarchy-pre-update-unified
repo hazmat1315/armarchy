@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# Omarchy Unified Pre-Update Snapshot Creator
+# Creates snapshots before pacman operations using omarchy-snapshot (works on both x86_64 and ARM64)
+# Called automatically by pacman hook
+
+set -e
+
+# Skip if we're in a chroot (during installation)
+if [[ "${OMARCHY_CHROOT_INSTALL:-}" == "1" ]]; then
+    exit 0
+fi
+
+# Skip if snapper is not available
+if ! command -v snapper &>/dev/null; then
+    exit 0
+fi
+
+# Find omarchy-snapshot command
+OMARCHY_PATH=${OMARCHY_PATH:-$HOME/.local/share/omarchy}
+SNAPSHOT_CMD=""
+
+if [[ -x "${OMARCHY_PATH}/bin/omarchy-snapshot" ]]; then
+    SNAPSHOT_CMD="${OMARCHY_PATH}/bin/omarchy-snapshot"
+elif command -v omarchy-snapshot &>/dev/null; then
+    SNAPSHOT_CMD="omarchy-snapshot"
+else
+    echo "⚠️  omarchy-snapshot not found, falling back to direct snapper call"
+    # Fallback for systems without omarchy-snapshot
+    TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+    PACKAGE_COUNT=$(echo "${@}" | wc -w)
+    if [[ $PACKAGE_COUNT -gt 5 ]]; then
+        DESC="Pre-update snapshot ($PACKAGE_COUNT packages) - $TIMESTAMP"
+    else
+        DESC="Pre-update snapshot ($(echo "${@}" | tr '\n' ' ')) - $TIMESTAMP"
+    fi
+
+    snapper -c root create --description "$DESC" --cleanup-algorithm number
+    exit 0
+fi
+
+# Use unified omarchy-snapshot interface (works for both x86_64 and ARM64)
+echo "Creating pre-update snapshot using omarchy-snapshot..."
+if $SNAPSHOT_CMD create; then
+    echo "✅ Pre-update snapshot created successfully via omarchy-snapshot"
+else
+    echo "⚠️  Failed to create pre-update snapshot via omarchy-snapshot"
+    exit 1
+fi

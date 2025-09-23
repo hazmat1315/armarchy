@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Limine Snapper Restore
+Comment=Restore btrfs snapshots using Limine bootloader
+Exec=sudo /bin/omarchy-limine-snapper-restore
+Icon=limine-snapper-sync
+Terminal=true
+Type=Application
+Categories=System;Administration;
+Keywords=snapshot;restore;btrfs;limine;backup;
+StartupNotify=false

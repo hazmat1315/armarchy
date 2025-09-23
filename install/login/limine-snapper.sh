@@ -97,8 +97,8 @@ EOF
     sudo sed -i '/^ENABLE_UKI=/d; /^ENABLE_LIMINE_FALLBACK=/d' /etc/default/limine
   fi
 
-  # We overwrite the whole thing knowing the limine-update will add the entries for us
-  sudo tee /boot/limine.conf <<EOF >/dev/null
+  # We overwrite the correct config file (the one Limine actually reads)
+  sudo tee "$limine_config" <<EOF >/dev/null
 ### Read more at config document: https://github.com/limine-bootloader/limine/blob/trunk/CONFIG.md
 #timeout: 3
 default_entry: 2
@@ -127,17 +127,38 @@ EOF
       sudo snapper -c root create-config /
     fi
 
-    if ! sudo snapper list-configs 2>/dev/null | grep -q "home"; then
+    # Only create home config if /home is a separate btrfs subvolume
+    if sudo btrfs subvolume show /home &>/dev/null && ! sudo snapper list-configs 2>/dev/null | grep -q "home"; then
       sudo snapper -c home create-config /home
     fi
   fi
 
-  # Tweak default Snapper configs
-  sudo sed -i 's/^TIMELINE_CREATE="yes"/TIMELINE_CREATE="no"/' /etc/snapper/configs/{root,home}
-  sudo sed -i 's/^NUMBER_LIMIT="50"/NUMBER_LIMIT="5"/' /etc/snapper/configs/{root,home}
-  sudo sed -i 's/^NUMBER_LIMIT_IMPORTANT="10"/NUMBER_LIMIT_IMPORTANT="5"/' /etc/snapper/configs/{root,home}
+  # Tweak default Snapper configs - only modify configs that exist
+  for config in root home; do
+    if sudo snapper list-configs 2>/dev/null | grep -q "$config"; then
+      sudo sed -i 's/^TIMELINE_CREATE="yes"/TIMELINE_CREATE="no"/' /etc/snapper/configs/$config
+      sudo sed -i 's/^NUMBER_LIMIT="50"/NUMBER_LIMIT="5"/' /etc/snapper/configs/$config
+      sudo sed -i 's/^NUMBER_LIMIT_IMPORTANT="10"/NUMBER_LIMIT_IMPORTANT="5"/' /etc/snapper/configs/$config
+    fi
+  done
 
-  chrootable_systemctl_enable limine-snapper-sync.service
+  # Install unified pacman hook for automatic pre-update snapshots (both architectures)
+  sudo mkdir -p /usr/share/libalpm/hooks
+  sudo cp $OMARCHY_PATH/install/alpm/hooks/10-omarchy-pre-update-snapshot.hook /usr/share/libalpm/hooks/
+  sudo cp $OMARCHY_PATH/bin/omarchy-pre-update-unified /usr/local/bin/
+  sudo chmod +x /usr/local/bin/omarchy-pre-update-unified
+  echo "✅ Unified pre-update snapshot hook installed for both architectures"
+
+  if [ -z "$OMARCHY_ARM" ]; then
+    chrootable_systemctl_enable limine-snapper-sync.service
+    echo "✅ x86_64: Java limine-snapper-sync.service enabled"
+  else
+    # Install and enable our custom service for ARM64 with kernel versioning
+    sudo cp $OMARCHY_PATH/install/systemd/omarchy-limine-snapshot.* /etc/systemd/system/
+    chrootable_systemctl_enable omarchy-limine-snapshot.path
+    chrootable_systemctl_enable omarchy-limine-snapshot.service
+    echo "✅ ARM64: Bash omarchy-limine-snapshot services enabled with kernel versioning"
+  fi
 fi
 
 # Hooks were already re-enabled at the top of this script

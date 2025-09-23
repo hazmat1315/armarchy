@@ -1,0 +1,35 @@
+[Unit]
+Description=Update Limine configuration when snapshots change
+After=snapper-cleanup.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/bin/bash -c 'HOOK=$(find /home /usr/local -name omarchy-limine-snapshot-hook -executable 2>/dev/null | head -1); [[ -x "$HOOK" ]] && exec "$HOOK" || exit 1'
+StandardOutput=journal
+StandardError=journal
+Restart=on-failure
+RestartSec=10s
+
+# Security hardening (relaxed for snapshot access)
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_READ_SEARCH
+LockPersonality=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHome=no
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ReadWritePaths=/tmp /boot /boot/EFI /home /.snapshots
+ReadOnlyPaths=/.snapshots
+RemoveIPC=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+NoNewPrivileges=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service @mount
+
+[Install]
+WantedBy=multi-user.target

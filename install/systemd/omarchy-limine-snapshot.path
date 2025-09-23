@@ -1,0 +1,10 @@
+[Unit]
+Description=Monitor snapper snapshots directory for changes
+After=snapper-boot.service
+
+[Path]
+PathModified=/.snapshots
+PathModified=/home/.snapshots
+
+[Install]
+WantedBy=multi-user.target

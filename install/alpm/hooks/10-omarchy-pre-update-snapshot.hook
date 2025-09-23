@@ -1,0 +1,15 @@
+# Omarchy Pre-Update Snapshot Hook (Unified for x86_64 and ARM64)
+# Creates snapshots before system updates using omarchy-snapshot
+
+[Trigger]
+Operation = Upgrade
+Operation = Install
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Creating pre-update snapshot (unified omarchy-snapshot)
+When = PreTransaction
+Exec = /usr/local/bin/omarchy-pre-update-unified
+NeedsTargets
