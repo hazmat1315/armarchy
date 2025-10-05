@@ -67,16 +67,21 @@ if [[ $EUID -eq 0 ]]; then
   exit 0 # exit to not run the rest of the script, and avoid cloning as root
 fi
 
-echo -e "\nCloning Omarchy from: https://github.com/${OMARCHY_REPO}.git"
-rm -rf ~/.local/share/omarchy/
-git clone "https://github.com/${OMARCHY_REPO}.git" ~/.local/share/omarchy >/dev/null
+if [[ -n $OMARCHY_RESUME_INSTALL ]]; then
+  echo -e "\n\e[32mResuming Omarchy installation from where it left off...\e[0m\n"
+else
+  echo -e "\nCloning Omarchy from: https://github.com/${OMARCHY_REPO}.git"
 
-# Use custom branch if instructed, otherwise default to master
-OMARCHY_REF="${OMARCHY_REF:-master}"
-echo -e "\e[32mUsing branch: $OMARCHY_REF\e[0m"
-cd ~/.local/share/omarchy
-git fetch origin "${OMARCHY_REF}" && git checkout "${OMARCHY_REF}"
-cd -
+  rm -rf ~/.local/share/omarchy/
+  git clone "https://github.com/${OMARCHY_REPO}.git" ~/.local/share/omarchy >/dev/null
+
+  if [[ $OMARCHY_REF != "master" ]]; then
+    echo -e "\e[32mUsing branch: $OMARCHY_REF\e[0m"
+    cd ~/.local/share/omarchy
+    git fetch origin "${OMARCHY_REF}" && git checkout "${OMARCHY_REF}"
+    cd -
+  fi
+fi
 
 # Set edge mirror for dev installs
 if [[ $OMARCHY_REF == "dev" ]]; then
