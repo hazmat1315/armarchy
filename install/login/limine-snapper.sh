@@ -45,11 +45,10 @@ if [ -n "$OMARCHY_SKIP_LIMINE" ]; then
 fi
 
 if command -v limine &>/dev/null; then
-  sudo pacman -S --noconfirm --needed limine-snapper-sync limine-mkinitcpio-hook
-
+  # Detect EFI vs BIOS mode
   [[ -f /boot/EFI/limine/limine.conf ]] || [[ -f /boot/EFI/BOOT/limine.conf ]] && EFI=true
 
-  # Conf location is different between EFI and BIOS
+  # Determine limine.conf location based on EFI/BIOS mode
   if [[ -n "$EFI" ]]; then
     # Check USB location first, then regular EFI location
     if [[ -f /boot/EFI/BOOT/limine.conf ]]; then
@@ -61,14 +60,16 @@ if command -v limine &>/dev/null; then
     limine_config="/boot/limine/limine.conf"
   fi
 
-  # Double-check and exit if we don't have a config file for some reason
-  if [[ ! -f $limine_config ]]; then
-    echo "Error: Limine config not found at $limine_config" >&2
-    exit 1
+  # Extract cmdline from existing config if it exists, otherwise use empty
+  if [[ -f $limine_config ]]; then
+    CMDLINE=$(grep "^[[:space:]]*cmdline:" "$limine_config" | head -1 | sed 's/^[[:space:]]*cmdline:[[:space:]]*//')
+  else
+    echo "Note: No existing limine.conf found, will create fresh configuration"
+    CMDLINE=""
   fi
 
-  CMDLINE=$(grep "^[[:space:]]*cmdline:" "$limine_config" | head -1 | sed 's/^[[:space:]]*cmdline:[[:space:]]*//')
-
+  # Create /etc/default/limine BEFORE installing limine-mkinitcpio-hook
+  # The hook's post-install script runs limine-update which requires ESP_PATH to be set
   sudo tee /etc/default/limine <<EOF >/dev/null
 TARGET_OS_NAME="Omarchy"
 
@@ -125,6 +126,8 @@ EOF
     sudo rm "$limine_config"
   fi
 
+  # Now install the packages - their hooks will find /etc/default/limine and /boot/limine.conf ready
+  sudo pacman -S --noconfirm --needed limine-snapper-sync limine-mkinitcpio-hook
 
   # Match Snapper configs if not installing from the ISO
   if [[ -z ${OMARCHY_CHROOT_INSTALL:-} ]]; then
@@ -143,16 +146,16 @@ EOF
   sudo sed -i 's/^NUMBER_LIMIT_IMPORTANT="10"/NUMBER_LIMIT_IMPORTANT="5"/' /etc/snapper/configs/{root,home}
 
   chrootable_systemctl_enable limine-snapper-sync.service
-fi
 
-# Hooks were already re-enabled at the top of this script
-sudo limine-update
+  # Run limine-update to generate boot entries
+  sudo limine-update
 
-if [[ -n $EFI ]] && efibootmgr &>/dev/null; then
+  if [[ -n $EFI ]] && efibootmgr &>/dev/null; then
     # Remove the archinstall-created Limine entry
-  while IFS= read -r bootnum; do
-    sudo efibootmgr -b "$bootnum" -B >/dev/null 2>&1
-  done < <(efibootmgr | grep -E "^Boot[0-9]{4}\*? Arch Linux Limine" | sed 's/^Boot\([0-9]\{4\}\).*/\1/')
+    while IFS= read -r bootnum; do
+      sudo efibootmgr -b "$bootnum" -B >/dev/null 2>&1
+    done < <(efibootmgr | grep -E "^Boot[0-9]{4}\*? Arch Linux Limine" | sed 's/^Boot\([0-9]\{4\}\).*/\1/')
+  fi
 fi
 
 # Move this to a utility to allow manual activation
