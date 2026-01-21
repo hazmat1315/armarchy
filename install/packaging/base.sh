@@ -8,13 +8,9 @@ echo "Installing official base packages..."
 mapfile -t official_packages < <(grep -v '^#' "$OMARCHY_INSTALL/omarchy-base-official.packages" | grep -v '^$' | sed 's/#.*$//' | sed 's/[[:space:]]*$//')
 
 if [ ${#official_packages[@]} -gt 0 ]; then
-  if [ -n "$OMARCHY_ARM" ]; then
-    # ARM: Use yay (handles official repos via pacman)
-    with_yes yay -S --noconfirm --needed "${official_packages[@]}"
-  else
-    # x86: Use pacman directly (omarchy mirror)
-    with_yes sudo pacman -S --noconfirm --needed "${official_packages[@]}"
-  fi
+  # Use pacman directly for official repo packages (both ARM and x86)
+  # Avoids yay's AUR dependency scanning which can hang on broken AUR packages
+  with_yes sudo pacman -S --noconfirm --needed "${official_packages[@]}"
 fi
 
 # Install AUR packages second (with GitHub fallback)
