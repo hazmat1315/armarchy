@@ -211,12 +211,12 @@ show_font_menu() {
 }
 
 show_setup_menu() {
-  local options="  Audio\n󱚾  Wi-Fi"
-  has_bluetooth && options="$options\n󰂯  Bluetooth"                                                                                                     ─
-  options="$options\n󱐋  Power Profile\n  System Sleep\n󰍹  Monitors"
-  [ -f ~/.config/hypr/bindings.conf ] && options="$options\n  Keybindings"
-  [ -f ~/.config/hypr/input.conf ] && options="$options\n  Input"
-  options="$options\n  Defaults\n󰱔  DNS\n  Security\n  Config"
+  local options="  Audio\n󱚾  Wi-Fi"
+  has_bluetooth && options="$options\n󰂯  Bluetooth"
+  options="$options\n󱐋  Power Profile\n  System Sleep\n󰍹  Monitors"
+  [ -f ~/.config/hypr/bindings.conf ] && options="$options\n  Keybindings"
+  [ -f ~/.config/hypr/input.conf ] && options="$options\n  Input"
+  options="$options\n󰱔  DNS\n  Security\n  Config"
 
   case $(menu "Setup" "$options") in
   *Audio*) omarchy-launch-or-focus-tui wiremix ;;
@@ -227,7 +227,6 @@ show_setup_menu() {
   *Monitors*) open_in_editor ~/.config/hypr/monitors.conf ;;
   *Keybindings*) open_in_editor ~/.config/hypr/bindings.conf ;;
   *Input*) open_in_editor ~/.config/hypr/input.conf ;;
-  *Defaults*) show_setup_defaults_menu ;;
   *DNS*) present_terminal omarchy-setup-dns ;;
   *Security*) show_setup_security_menu ;;
   *Config*) show_setup_config_menu ;;
@@ -576,7 +575,7 @@ show_about() {
 
 show_system_menu() {
   local options="  Lock\n󱄄  Screensaver"
-  [ -f ~/.local/state/omarchy/toggles/suspend-on ] && options="$options\n󰒲  Suspend"                                                                    ─
+  [ -f ~/.local/state/omarchy/toggles/suspend-on ] && options="$options\n󰒲  Suspend"
   omarchy-hibernation-available && options="$options\n󰤁  Hibernate"
   options="$options\n  Relaunch\n󰜉  Restart\n󰐥  Shutdown"
 
