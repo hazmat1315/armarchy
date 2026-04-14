@@ -40,41 +40,10 @@ fi
 echo "Installing ghostty-git from AUR..."
 "$OMARCHY_PATH/bin/omarchy-aur-install" --makepkg-flags="--needed" ghostty-git
 
-# Create wrapper script with runtime VM detection
-echo "Creating Ghostty wrapper script with automatic VM detection..."
-mkdir -p ~/.local/share/omarchy/bin
-
-cat > ~/.local/share/omarchy/bin/ghostty << 'EOF'
-#!/bin/bash
-# Ghostty wrapper - Auto-detects VM and uses software rendering when needed
-
-# Check if running in a VM
-# Exception: Apple Silicon is always bare metal (even if systemd-detect-virt reports otherwise)
-# Check kernel name OR device tree for Apple hardware (newer kernels may not have "asahi" in name)
-is_apple_silicon=false
-if uname -r | grep -qi "asahi" || grep -q "apple" /sys/firmware/devicetree/base/compatible 2>/dev/null; then
-  is_apple_silicon=true
-fi
-if command -v systemd-detect-virt &>/dev/null && [ "$is_apple_silicon" = "false" ]; then
-  virt_type=$(systemd-detect-virt)
-  if [[ "$virt_type" != "none" ]]; then
-    # Running in a VM - use Zink (OpenGL over Vulkan via lavapipe) for OpenGL 4.3+
-    # Virgl only provides OpenGL 4.0, but Ghostty requires 4.3
-    # Scoped to exec so child processes (apps launched from terminal) aren't affected
-    exec env \
-      VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.aarch64.json \
-      MESA_LOADER_DRIVER_OVERRIDE=zink \
-      __GLX_VENDOR_LIBRARY_NAME=mesa \
-      /usr/bin/ghostty "$@"
-  fi
-fi
-
-# Execute the real ghostty binary
-exec /usr/bin/ghostty "$@"
-EOF
-
-chmod +x ~/.local/share/omarchy/bin/ghostty
-echo "Wrapper script created at ~/.local/share/omarchy/bin/ghostty"
+# The Ghostty wrapper script (bin/ghostty in this repo) handles runtime VM
+# detection and env setup for software rendering. It's committed in the
+# repo and arrives via git clone / omarchy-update, so no regeneration is
+# needed here.
 
 # Create desktop file override to use wrapper
 echo "Creating desktop file override..."
