@@ -36,14 +36,16 @@ StartupWMClass=obsidian
 EOF
 fi
 
-# Download and install icon
-echo "Downloading Obsidian icon..."
-ICON_URL="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/obsidian.png"
-curl -L "$ICON_URL" -o ~/.local/share/omarchy/applications/icons/obsidian.png
-
-# Resize icon to 48x48 for omarchy's icon system if convert is available
-if command -v convert &>/dev/null; then
-  convert ~/.local/share/omarchy/applications/icons/obsidian.png -resize 48x48 ~/.local/share/omarchy/applications/icons/obsidian.png
+# Icon ships in the repo at applications/icons/obsidian.png (already
+# resized to 48x48), so no runtime download is normally needed. Only
+# fetch if the committed icon is somehow missing.
+if [ ! -f ~/.local/share/omarchy/applications/icons/obsidian.png ]; then
+  echo "Downloading Obsidian icon (repo copy missing)..."
+  ICON_URL="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/obsidian.png"
+  curl -L "$ICON_URL" -o ~/.local/share/omarchy/applications/icons/obsidian.png
+  if command -v convert &>/dev/null; then
+    convert ~/.local/share/omarchy/applications/icons/obsidian.png -resize 48x48 ~/.local/share/omarchy/applications/icons/obsidian.png
+  fi
 fi
 
 # Refresh applications using omarchy's system
