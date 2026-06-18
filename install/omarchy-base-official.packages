@@ -76,7 +76,7 @@ luarocks
 mako
 man-db
 mariadb-libs
-mise
+mise-bin
 mpv
 nautilus
 nautilus-python
