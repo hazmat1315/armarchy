@@ -27,6 +27,7 @@ rm -rf omarchy-pkgs
 clone_attempts=0
 max_clone_attempts=3
 while [ $clone_attempts -lt $max_clone_attempts ]; do
+  cd /tmp
   if git clone https://github.com/omacom-io/omarchy-pkgs.git 2>&1; then
     break
   fi
@@ -42,7 +43,7 @@ done
 
 # Build and install the package
 echo "Building and installing omarchy-nvim (this may take a while)..."
-cd omarchy-pkgs/pkgbuilds/edge/omarchy-nvim
+cd /tmp/omarchy-pkgs/pkgbuilds/edge/omarchy-nvim
 makepkg -si --noconfirm
 
 cd ~
